@@ -1,0 +1,17 @@
+export const colors = {
+  bgCream: '#FAF7F2',
+  dotColor: 'rgba(0, 0, 0, 0.12)',
+  primaryPink: '#E51760',
+  primaryPinkHover: '#CF1056',
+  accentYellow: '#FFE600',
+  neonYellow: '#EAFF00',
+  lavender: '#E2DCFE',
+  cardWhite: '#FFFFFF',
+  inputBg: '#FFFFFF',
+  borderBlack: '#000000',
+  shadowBlack: '#000000',
+  textDark: '#0D0D0D',
+  textMuted: '#666666',
+  errorRed: '#FF2E2E',
+  softPinkBg: 'rgba(255, 105, 180, 0.15)',
+};
