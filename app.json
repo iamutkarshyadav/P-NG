@@ -52,7 +52,8 @@
         {
           "faceIDPermission": "Use Face ID to unlock P!NG."
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "scheme": "ping"
   }

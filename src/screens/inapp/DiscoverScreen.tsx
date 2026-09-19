@@ -4,6 +4,7 @@ import {
   Text,
   View,
   ScrollView,
+  RefreshControl,
   TouchableOpacity,
   Alert,
   Platform,
@@ -175,6 +176,7 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
   const [pinned, setPinned] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const [match, setMatch] = useState<{ matchId: string; name: string; partnerId: string } | null>(null);
 
   const queue = useMemo(() => {
@@ -201,6 +203,16 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
         });
     }
   }, [feed, handled.length, queue.length]);
+
+  const handlePullRefresh = async () => {
+    setPulling(true);
+    try {
+      await Promise.all([feed.refetch(), superpings.refetch()]);
+      setHandled([]);
+    } finally {
+      setPulling(false);
+    }
+  };
 
   const act = async (action: SwipeAction) => {
     if (!current || busy) return;
@@ -298,7 +310,13 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
   const distance = distanceLabel(current.distanceKm);
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={pulling} onRefresh={handlePullRefresh} tintColor={colors.primaryPink} colors={[colors.primaryPink]} />
+      }
+    >
       <View style={styles.container}>
         <View style={styles.cardStackWrapper}>
           <View style={styles.yellowUnderlay} />

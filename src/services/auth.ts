@@ -4,6 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../lib/supabase';
 import { env } from '../lib/env';
 import { errorMessage } from './errors';
+import { authRedirectUrl, completeAuthLink, setOAuthInFlight } from './authLinks';
 
 // Completes the OAuth popup on web when the provider redirects back to the app.
 WebBrowser.maybeCompleteAuthSession();
@@ -46,7 +47,11 @@ export async function signUpWithEmail(email: string, password: string): Promise<
   if (password.length < MIN_PASSWORD_LENGTH) {
     return { ok: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
   }
-  const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    options: { emailRedirectTo: authRedirectUrl() },
+  });
   if (error) return { ok: false, error: friendlyAuthError(error.message) };
   if (data.session) return { ok: true };
 
@@ -77,23 +82,19 @@ export async function signInWithGoogle(): Promise<AuthResult> {
       return { ok: false, error: friendlyAuthError(error?.message ?? 'Could not start Google sign-in.') };
     }
 
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    setOAuthInFlight(true);
+    let result: WebBrowser.WebBrowserAuthSessionResult;
+    try {
+      result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    } finally {
+      // Keep the guard up briefly: Android may also deliver the same redirect as a deep link.
+      setTimeout(() => setOAuthInFlight(false), 1500);
+    }
     if (result.type !== 'success') return { ok: false, error: 'Google sign-in was cancelled.' };
 
-    const url = new URL(result.url.replace('#', '?'));
-    const code = url.searchParams.get('code');
-    if (code) {
-      const exchanged = await supabase.auth.exchangeCodeForSession(code);
-      if (exchanged.error) return { ok: false, error: friendlyAuthError(exchanged.error.message) };
-      return { ok: true };
-    }
-    const accessToken = url.searchParams.get('access_token');
-    const refreshToken = url.searchParams.get('refresh_token');
-    if (!accessToken || !refreshToken) {
-      return { ok: false, error: url.searchParams.get('error_description') ?? 'Google sign-in failed.' };
-    }
-    const session = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-    return session.error ? { ok: false, error: friendlyAuthError(session.error.message) } : { ok: true };
+    const link = await completeAuthLink(result.url, { force: true });
+    if (!link.handled) return { ok: false, error: 'Google sign-in failed.' };
+    return link.ok ? { ok: true } : { ok: false, error: friendlyAuthError(link.error) };
   } catch (e) {
     return { ok: false, error: errorMessage(e, 'Google sign-in failed.') };
   }
@@ -105,7 +106,9 @@ export async function signOut(): Promise<void> {
 
 export async function requestPasswordReset(email: string): Promise<AuthResult> {
   if (!EMAIL_PATTERN.test(email.trim())) return { ok: false, error: 'Enter your email above first.' };
-  const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: authRedirectUrl(),
+  });
   return error ? { ok: false, error: friendlyAuthError(error.message) } : { ok: true };
 }
 

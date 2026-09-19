@@ -38,6 +38,36 @@ export type Database = {
         Update: { blocked_id?: string; blocker_id?: string; created_at?: string };
         Relationships: Rel[];
       };
+      feedback: {
+        Row: {
+          app_version: string | null;
+          category: string;
+          created_at: string;
+          id: string;
+          message: string;
+          platform: string | null;
+          user_id: string;
+        };
+        Insert: {
+          app_version?: string | null;
+          category: string;
+          created_at?: string;
+          id?: string;
+          message: string;
+          platform?: string | null;
+          user_id: string;
+        };
+        Update: {
+          app_version?: string | null;
+          category?: string;
+          created_at?: string;
+          id?: string;
+          message?: string;
+          platform?: string | null;
+          user_id?: string;
+        };
+        Relationships: Rel[];
+      };
       match_reads: {
         Row: { last_read_at: string; match_id: string; user_id: string };
         Insert: { last_read_at?: string; match_id: string; user_id: string };

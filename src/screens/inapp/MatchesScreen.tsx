@@ -4,6 +4,7 @@ import {
   Text,
   View,
   ScrollView,
+  RefreshControl,
   TouchableOpacity,
   Alert,
   Platform,
@@ -85,7 +86,13 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ user, onOpenChat }
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={matchesQuery.isRefetching} onRefresh={() => matchesQuery.refetch()} tintColor={colors.primaryPink} colors={[colors.primaryPink]} />
+      }
+    >
       <View style={styles.container}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>MATCHES</Text>

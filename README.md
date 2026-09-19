@@ -65,3 +65,19 @@ Privacy model: the client only ever receives a distance bucket and an age for ot
 4. **Selfie verification** is a manual queue: see `supabase/review-verification.sql`.
 5. **Legal pages**: set `EXPO_PUBLIC_TERMS_URL` / `EXPO_PUBLIC_PRIVACY_URL`; the links appear in Settings.
 6. Change `com.utkarsh.ping` in `app.json` (iOS bundle id / Android package) before the first store build.
+
+## Private beta checklist
+
+**Auth email links.** Supabase dashboard > Authentication > URL Configuration: set *Site URL* to your web origin and add these *Redirect URLs*: `ping://auth-callback`, your web origin, and the `exp://.../--/auth-callback` URL Expo prints in development. Confirmation and password-reset emails send people back into the app through these. The app handles the links in `SessionProvider` (helpers in `src/services/authLinks.ts`) and shows `ResetPasswordScreen` after a reset link.
+
+**Crash reporting.** Create a Sentry React Native project and put its DSN in `EXPO_PUBLIC_SENTRY_DSN`. Without it reporting is off. For readable native stack traces run the Sentry wizard once (`npx @sentry/wizard -i reactNative`).
+
+**Feedback.** Testers use Settings > Beta feedback. Read it in the SQL editor:
+
+```sql
+select f.created_at, f.category, p.display_name, f.message, f.app_version, f.platform
+  from public.feedback f join public.profiles p on p.id = f.user_id
+ order by f.created_at desc;
+```
+
+**Builds and over-the-air fixes.** Run `eas init`, then `eas update:configure` (writes the updates URL and runtime version into `app.json`). Build with `eas build --profile preview` and share the install link. Ship JavaScript-only fixes with `eas update --channel preview --message "what changed"`.

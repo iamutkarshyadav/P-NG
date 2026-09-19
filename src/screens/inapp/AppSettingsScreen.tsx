@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,7 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -27,6 +28,7 @@ import { SettingsRow } from '../../services/profile';
 import { exportMyData } from '../../services/account';
 import { registerForPush } from '../../services/push';
 import { errorMessage } from '../../services/errors';
+import { FEEDBACK_CATEGORIES, FeedbackCategory, submitFeedback } from '../../services/feedback';
 
 interface AppSettingsScreenProps {
   user: UserAccount;
@@ -41,6 +43,22 @@ type BoolSetting = {
 export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ user, onBack }) => {
   const queryClient = useQueryClient();
   const { settings, isLoading, error, update } = useSettings(user.id);
+  const [feedbackCategory, setFeedbackCategory] = useState<FeedbackCategory>('bug');
+  const [feedbackText, setFeedbackText] = useState('');
+  const [sendingFeedback, setSendingFeedback] = useState(false);
+
+  const handleSendFeedback = async () => {
+    setSendingFeedback(true);
+    try {
+      await submitFeedback(user.id, feedbackCategory, feedbackText);
+      setFeedbackText('');
+      Alert.alert('Thank you!', 'Your feedback was sent to the team.');
+    } catch (e) {
+      Alert.alert('Could not send feedback', errorMessage(e));
+    } finally {
+      setSendingFeedback(false);
+    }
+  };
 
   const toggle = async (key: BoolSetting) => {
     if (!settings) return;
@@ -262,6 +280,68 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ user, onBa
           </View>
 
           <View style={styles.cardWrapper}>
+            <View style={styles.floatingBadgeYellow}>
+              <Text style={styles.floatingBadgeText}>BETA FEEDBACK</Text>
+            </View>
+            <BrutalBox
+              backgroundColor="#FFFFFF"
+              borderColor={colors.borderBlack}
+              borderWidth={2.8}
+              borderRadius={20}
+              shadowOffset={{ x: 4, y: 4 }}
+              style={styles.fullWidth}
+              contentStyle={styles.cardContent}
+            >
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardBigTitle}>TELL US WHAT BROKE</Text>
+                <Ionicons name="chatbox-ellipses-outline" size={22} color={colors.primaryPink} />
+              </View>
+
+              <View style={styles.feedbackChips}>
+                {FEEDBACK_CATEGORIES.map((c) => (
+                  <TouchableOpacity
+                    key={c.value}
+                    onPress={() => setFeedbackCategory(c.value)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: feedbackCategory === c.value }}
+                    style={[styles.feedbackChip, feedbackCategory === c.value && styles.feedbackChipActive]}
+                  >
+                    <Text style={styles.feedbackChipText}>{c.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TextInput
+                style={styles.feedbackInput}
+                value={feedbackText}
+                onChangeText={setFeedbackText}
+                placeholder="What happened, or what would make P!NG better?"
+                placeholderTextColor="#888"
+                multiline
+                maxLength={2000}
+                accessibilityLabel="Feedback message"
+              />
+
+              <BrutalBox
+                backgroundColor={feedbackText.trim().length >= 5 ? colors.accentYellow : '#E5E7EB'}
+                borderColor={colors.borderBlack}
+                borderWidth={2.2}
+                borderRadius={14}
+                shadowOffset={{ x: 3, y: 3 }}
+                onPress={handleSendFeedback}
+                disabled={sendingFeedback || feedbackText.trim().length < 5}
+                contentStyle={styles.feedbackSend}
+              >
+                {sendingFeedback ? (
+                  <ActivityIndicator color={colors.textDark} />
+                ) : (
+                  <Text style={styles.feedbackSendText}>SEND FEEDBACK</Text>
+                )}
+              </BrutalBox>
+            </BrutalBox>
+          </View>
+
+          <View style={styles.cardWrapper}>
             <View style={styles.floatingBadgeGrey}>
               <Text style={styles.floatingBadgeText}>ABOUT</Text>
             </View>
@@ -304,6 +384,32 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ user, onBa
 };
 
 const styles = StyleSheet.create({
+  feedbackChips: { flexDirection: 'row', gap: 8 },
+  feedbackChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1.8,
+    borderColor: colors.borderBlack,
+    backgroundColor: '#FAF7F2',
+  },
+  feedbackChipActive: { backgroundColor: colors.accentYellow },
+  feedbackChipText: { fontSize: 12, fontFamily: typography.bodyExtraBold, color: colors.textDark, letterSpacing: 0.4 },
+  feedbackInput: {
+    minHeight: 100,
+    borderWidth: 2,
+    borderColor: colors.borderBlack,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    fontSize: 14,
+    fontFamily: typography.bodyMedium,
+    color: colors.textDark,
+    textAlignVertical: 'top',
+  },
+  feedbackSend: { paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
+  feedbackSendText: { fontSize: 15, fontFamily: typography.headline, color: colors.textDark, letterSpacing: 0.5 },
   toggleDisabled: {
     opacity: 0.5,
   },

@@ -14,6 +14,7 @@ export const env = {
   supabaseUrl,
   supabasePublishableKey,
   appEnv: process.env.EXPO_PUBLIC_APP_ENV ?? 'development',
+  sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN || undefined,
   termsUrl: process.env.EXPO_PUBLIC_TERMS_URL || undefined,
   privacyUrl: process.env.EXPO_PUBLIC_PRIVACY_URL || undefined,
   supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL || undefined,

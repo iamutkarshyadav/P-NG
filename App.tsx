@@ -15,7 +15,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { Anton_400Regular } from '@expo-google-fonts/anton';
 import {
   PlusJakartaSans_400Regular,
@@ -29,6 +29,11 @@ import { colors } from './src/theme/colors';
 import { typography } from './src/theme/typography';
 import { LAYOUT } from './src/theme/responsive';
 import { env } from './src/lib/env';
+import { queryClient } from './src/lib/queryClient';
+import { initMonitoring, withMonitoring } from './src/lib/monitoring';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { OfflineBanner } from './src/components/OfflineBanner';
+import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { DotGridBackground } from './src/components/DotGridBackground';
 import { BrutalBox } from './src/components/BrutalBox';
 import { PingLogoHeader } from './src/components/PingLogoHeader';
@@ -57,21 +62,24 @@ import { OnboardingTagsScreen } from './src/screens/OnboardingTagsScreen';
 import { OnboardingLocationScreen } from './src/screens/OnboardingLocationScreen';
 import type { UserAccount } from './src/types/user';
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false } },
-});
+initMonitoring();
 
-export default function App() {
+function App() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <SessionProvider>
-          <AppShell />
+          <ErrorBoundary>
+            <AppShell />
+          </ErrorBoundary>
+          <OfflineBanner />
         </SessionProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
   );
 }
+
+export default withMonitoring(App);
 
 function AppShell() {
   const [fontsLoaded] = useFonts({
@@ -83,7 +91,7 @@ function AppShell() {
     PlusJakartaSans_800ExtraBold,
   });
 
-  const { status, user, error: sessionError, setUser, retry } = useSession();
+  const { status, user, error: sessionError, setUser, retry, passwordRecovery, endRecovery } = useSession();
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState<string>(env.enableDevLogins ? DEV_ALEX.email : '');
   const [password, setPassword] = useState<string>(env.enableDevLogins ? DEV_ALEX.password : '');
@@ -191,6 +199,10 @@ function AppShell() {
         </TouchableOpacity>
       </View>
     );
+  }
+
+  if (user && passwordRecovery) {
+    return <ResetPasswordScreen onDone={endRecovery} />;
   }
 
   if (user) {
