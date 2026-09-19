@@ -369,6 +369,9 @@ export type Database = {
       complete_onboarding: { Args: never; Returns: undefined };
       // Dev-only helper (supabase/seed-dev.sql); absent on production projects.
       dev_move_seeds_near_me: { Args: never; Returns: undefined };
+      dev_approve_my_verification: { Args: never; Returns: undefined };
+      export_my_data: { Args: never; Returns: Json };
+      reset_my_swipes: { Args: never; Returns: undefined };
       discover_feed: {
         Args: { p_limit?: number };
         Returns: {

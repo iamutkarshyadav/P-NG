@@ -6,16 +6,30 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Modal,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { DotGridBackground } from '../../components/DotGridBackground';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
+import { useSession } from '../../providers/SessionProvider';
+import { updateProfile } from '../../services/profile';
+import { errorMessage } from '../../services/errors';
+import {
+  countMyReports,
+  devApproveVerification,
+  fetchBlockedUsers,
+  fetchVerificationState,
+  submitVerificationSelfie,
+  unblockUser,
+} from '../../services/safety';
 
 interface SafetyCenterScreenProps {
   user: UserAccount;
@@ -23,37 +37,83 @@ interface SafetyCenterScreenProps {
   onPreviewProfile?: () => void;
 }
 
-export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
-  onBack,
-}) => {
-  const [stealthActive, setStealthActive] = useState(true);
+export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({ user, onBack }) => {
+  const { setUser, refreshUser } = useSession();
+  const queryClient = useQueryClient();
+  const [blockListOpen, setBlockListOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const handleToolConfig = (toolName: string) => {
-    if (toolName === 'STEALTH') {
-      setStealthActive(!stealthActive);
-      Alert.alert(
-        'Stealth Mode',
-        !stealthActive
-          ? 'Stealth Shield activated! You are now hidden from mutual phone contacts.'
-          : 'Stealth Shield turned off.'
-      );
-    } else if (toolName === '100% REAL') {
-      Alert.alert(
-        '100% Real Verification',
-        'Your biometric live-match selfie is valid and verified. Next re-certification in 180 days.'
-      );
-    } else if (toolName === 'EPHEMERAL') {
-      Alert.alert(
-        'Ephemeral Chat Media',
-        'Auto-destruct timer set to 5 seconds after recipient opens media in chat.'
-      );
-    } else if (toolName === 'BLOCK LIST') {
-      Alert.alert(
-        'Blocked Accounts',
-        'You have 0 blocked users. You can report or block any match with instant 1-tap protection.'
-      );
+  const verification = useQuery({
+    queryKey: ['verification', user.id, user.isVerifiedReal],
+    queryFn: () => fetchVerificationState(user.id, user.isVerifiedReal),
+  });
+  const blocked = useQuery({ queryKey: ['blocked'], queryFn: fetchBlockedUsers });
+  const reports = useQuery({ queryKey: ['my-reports'], queryFn: countMyReports });
+
+  const blockedCount = blocked.data?.length ?? 0;
+  const state = verification.data ?? 'none';
+
+  const handleVerify = async () => {
+    if (state === 'verified') {
+      Alert.alert('You are verified', 'Your profile shows the 100% REAL badge.');
+      return;
+    }
+    if (state === 'pending') {
+      Alert.alert('Waiting for review', 'We will update your badge as soon as our team has checked your selfie.');
+      return;
+    }
+    setBusy('verify');
+    try {
+      const outcome = await submitVerificationSelfie(user.id);
+      if (outcome === 'denied') {
+        Alert.alert('Camera needed', 'Allow camera access in your device settings to take a verification selfie.');
+      } else if (outcome === 'submitted') {
+        await queryClient.invalidateQueries({ queryKey: ['verification'] });
+        Alert.alert('Selfie submitted', 'Our team will review it and add the 100% REAL badge to your profile.');
+        // Dev builds can approve themselves so the badge can be seen without a reviewer.
+        await devApproveVerification();
+        await refreshUser();
+        await queryClient.invalidateQueries({ queryKey: ['verification'] });
+      }
+    } catch (e) {
+      Alert.alert('Could not submit selfie', errorMessage(e));
+    } finally {
+      setBusy(null);
     }
   };
+
+  const handleStealth = async () => {
+    setBusy('stealth');
+    try {
+      const next = !user.isHidden;
+      setUser(await updateProfile(user, { is_hidden: next }));
+      await queryClient.invalidateQueries({ queryKey: ['feed'] });
+    } catch (e) {
+      Alert.alert('Could not update stealth mode', errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleUnblock = async (id: string, name: string) => {
+    try {
+      await unblockUser(user.id, id);
+      await queryClient.invalidateQueries({ queryKey: ['blocked'] });
+      await queryClient.invalidateQueries({ queryKey: ['feed'] });
+    } catch (e) {
+      Alert.alert(`Could not unblock ${name}`, errorMessage(e));
+    }
+  };
+
+  const verifyPill = state === 'verified' ? 'VERIFIED' : state === 'pending' ? 'IN REVIEW' : state === 'rejected' ? 'TRY AGAIN' : 'GET VERIFIED';
+  const verifySub =
+    state === 'verified'
+      ? 'Your 100% REAL badge is live.'
+      : state === 'pending'
+        ? 'Selfie sent. Awaiting review.'
+        : state === 'rejected'
+          ? 'Last selfie was not accepted.'
+          : 'Take a selfie to earn the badge.';
 
   return (
     <View style={styles.screenWrapper}>
@@ -72,7 +132,7 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
           {/* Screen Title Block */}
           <View style={styles.screenHeader}>
             <Text style={styles.screenHeading}>SAFETY CENTRE</Text>
-            <Text style={styles.screenSubheading}>Real-time protection, discreet emergency exit & incident reporting</Text>
+            <Text style={styles.screenSubheading}>Verification, privacy controls, blocking and reporting</Text>
           </View>
 
           {/* HERO BANNER: YOUR SAFETY IS NOT AN AFTERTHOUGHT */}
@@ -97,7 +157,7 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
             <Text style={styles.heroTitle}>YOUR SAFETY IS NOT AN AFTERTHOUGHT.</Text>
 
             <Text style={styles.heroParagraph}>
-              P!NG is built on real humans, auto-expiring chats, and an absolute zero-tolerance policy for creeps and harassment.
+              P!NG is built around real people. Report or block anyone in one tap, and our team reviews every report.
             </Text>
 
             {/* Bottom 100% Monitored row */}
@@ -113,7 +173,7 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
                   <Ionicons name="shield" size={10} color="#000" />
                 </View>
               </View>
-              <Text style={styles.monitoredText}>100% END-TO-END MONITORED</Text>
+              <Text style={styles.monitoredText}>EVERY REPORT REVIEWED</Text>
             </View>
           </BrutalBox>
 
@@ -125,11 +185,13 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
 
           {/* 2x2 Grid */}
           <View style={styles.gridContainer}>
-            {/* Card 1: 100% REAL (Mint) */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => handleToolConfig('100% REAL')}
+              onPress={handleVerify}
+              disabled={busy === 'verify'}
               style={styles.gridCol}
+              accessibilityRole="button"
+              accessibilityLabel="100% REAL"
             >
               <BrutalBox
                 backgroundColor="#A7F3D0"
@@ -144,19 +206,20 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
                   <MaterialCommunityIcons name="check-decagram" size={18} color="#DC2626" />
                 </View>
                 <Text style={styles.toolkitTitle}>100% REAL</Text>
-                <Text style={styles.toolkitSub}>Liveness checked & badge active.</Text>
+                <Text style={styles.toolkitSub}>{verifySub}</Text>
                 <View style={styles.toolkitPill}>
-                  <Text style={styles.toolkitPillText}>VERIFIED</Text>
-                  <View style={styles.redDot} />
+                  {busy === 'verify' ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.toolkitPillText}>{verifyPill}</Text>}
+                  {state === 'verified' && <View style={styles.redDot} />}
                 </View>
               </BrutalBox>
             </TouchableOpacity>
-
-            {/* Card 2: STEALTH (Pink) */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => handleToolConfig('STEALTH')}
+              onPress={handleStealth}
+              disabled={busy === 'stealth'}
               style={styles.gridCol}
+              accessibilityRole="button"
+              accessibilityLabel="STEALTH"
             >
               <BrutalBox
                 backgroundColor="#FBCFE8"
@@ -171,20 +234,18 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
                   <Feather name="eye-off" size={18} color="#000" />
                 </View>
                 <Text style={styles.toolkitTitle}>STEALTH</Text>
-                <Text style={styles.toolkitSub}>Hidden from mutuals & phone contacts.</Text>
+                <Text style={styles.toolkitSub}>Hide your card from Discover. Matches can still chat.</Text>
                 <View style={styles.toolkitPill}>
-                  <Text style={styles.toolkitPillText}>
-                    {stealthActive ? 'SHIELD ON' : 'SHIELD OFF'}
-                  </Text>
+                  {busy === 'stealth' ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.toolkitPillText}>{user.isHidden ? 'HIDDEN' : 'VISIBLE'}</Text>}
                 </View>
               </BrutalBox>
             </TouchableOpacity>
-
-            {/* Card 3: EPHEMERAL (Yellow) */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => handleToolConfig('EPHEMERAL')}
+              onPress={() => Alert.alert('Reporting someone', 'Open your chat with them and tap the shield or the menu, then choose Report. We review every report.')}
               style={styles.gridCol}
+              accessibilityRole="button"
+              accessibilityLabel="REPORTS"
             >
               <BrutalBox
                 backgroundColor="#FDE047"
@@ -196,21 +257,21 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
                 contentStyle={styles.toolkitCardContent}
               >
                 <View style={styles.toolkitIconBadge}>
-                  <MaterialCommunityIcons name="timer-lock-outline" size={18} color="#000" />
+                  <MaterialCommunityIcons name="flag-outline" size={18} color="#000" />
                 </View>
-                <Text style={styles.toolkitTitle}>EPHEMERAL</Text>
-                <Text style={styles.toolkitSub}>Tap-to-reveal chat media rules.</Text>
+                <Text style={styles.toolkitTitle}>REPORTS</Text>
+                <Text style={styles.toolkitSub}>Report from any chat. We review every report.</Text>
                 <View style={styles.toolkitPill}>
-                  <Text style={styles.toolkitPillText}>5 SEC EXPIRY</Text>
+                  <Text style={styles.toolkitPillText}>{reports.data ?? 0} FILED</Text>
                 </View>
               </BrutalBox>
             </TouchableOpacity>
-
-            {/* Card 4: BLOCK LIST (Lavender) */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => handleToolConfig('BLOCK LIST')}
+              onPress={() => setBlockListOpen(true)}
               style={styles.gridCol}
+              accessibilityRole="button"
+              accessibilityLabel="BLOCK LIST"
             >
               <BrutalBox
                 backgroundColor="#DDD6FE"
@@ -222,12 +283,12 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
                 contentStyle={styles.toolkitCardContent}
               >
                 <View style={styles.toolkitIconBadge}>
-                  <Feather name="flag" size={18} color="#DC2626" />
+                  <Feather name="slash" size={18} color="#DC2626" />
                 </View>
                 <Text style={styles.toolkitTitle}>BLOCK LIST</Text>
-                <Text style={styles.toolkitSub}>Review 0 blocked users, fast report.</Text>
+                <Text style={styles.toolkitSub}>Review the people you have blocked.</Text>
                 <View style={styles.toolkitPill}>
-                  <Text style={styles.toolkitPillText}>CLEAN RECORD</Text>
+                  <Text style={styles.toolkitPillText}>{blockedCount === 0 ? 'NONE BLOCKED' : `${blockedCount} BLOCKED`}</Text>
                 </View>
               </BrutalBox>
             </TouchableOpacity>
@@ -350,11 +411,86 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
           </BrutalBox>
         </View>
       </ScrollView>
+
+      <Modal transparent visible={blockListOpen} animationType="fade" onRequestClose={() => setBlockListOpen(false)}>
+        <TouchableOpacity style={styles.blockOverlay} activeOpacity={1} onPress={() => setBlockListOpen(false)}>
+          <BrutalBox
+            backgroundColor="#FFFFFF"
+            borderColor={colors.borderBlack}
+            borderWidth={2.6}
+            borderRadius={22}
+            shadowOffset={{ x: 4, y: 4 }}
+            style={styles.blockCard}
+            contentStyle={styles.blockCardContent}
+          >
+            <Text style={styles.blockTitle}>BLOCKED PEOPLE</Text>
+            {blocked.isLoading && <ActivityIndicator color={colors.primaryPink} />}
+            {!blocked.isLoading && blockedCount === 0 && (
+              <Text style={styles.blockEmpty}>You have not blocked anyone.</Text>
+            )}
+            {(blocked.data ?? []).map((b) => (
+              <View key={b.userId} style={styles.blockRow}>
+                <Text style={styles.blockName} numberOfLines={1}>
+                  {b.name}
+                </Text>
+                <TouchableOpacity onPress={() => handleUnblock(b.userId, b.name)} accessibilityRole="button">
+                  <Text style={styles.unblockText}>UNBLOCK</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </BrutalBox>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  blockOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  blockCard: {
+    width: '100%',
+    maxWidth: 340,
+  },
+  blockCardContent: {
+    padding: 16,
+    gap: 12,
+  },
+  blockTitle: {
+    fontSize: 14,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textDark,
+    letterSpacing: 0.6,
+  },
+  blockEmpty: {
+    fontSize: 14,
+    fontFamily: typography.bodyMedium,
+    color: colors.textMuted,
+  },
+  blockRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  blockName: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+    paddingRight: 12,
+  },
+  unblockText: {
+    fontSize: 12,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.primaryPink,
+    letterSpacing: 0.5,
+  },
   screenWrapper: {
     flex: 1,
     backgroundColor: '#FAF7F2',

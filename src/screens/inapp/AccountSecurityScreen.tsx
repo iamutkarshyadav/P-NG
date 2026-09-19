@@ -1,22 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Switch,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { DotGridBackground } from '../../components/DotGridBackground';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
+import { useSession } from '../../providers/SessionProvider';
+import { changePassword } from '../../services/auth';
+import { deleteMyAccount, exportMyData, resetMySwipes, signOutOtherSessions } from '../../services/account';
+import { isLockEnabled, isLockSupported, setLockEnabled } from '../../services/appLock';
+import { updateProfile } from '../../services/profile';
+import { errorMessage } from '../../services/errors';
 
 interface AccountSecurityScreenProps {
   user: UserAccount;
@@ -24,109 +33,128 @@ interface AccountSecurityScreenProps {
   onPreviewProfile?: () => void;
 }
 
-export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
-  user,
-  onBack,
-}) => {
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
-  const [biometricLockEnabled, setBiometricLockEnabled] = useState(true);
-  const [pauseAccount, setPauseAccount] = useState(false);
+export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({ user, onBack }) => {
+  const { setUser } = useSession();
+  const queryClient = useQueryClient();
+  const [lockSupported, setLockSupported] = useState(false);
+  const [lockOn, setLockOn] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const handleRevokeDevice = (device: string) => {
+  useEffect(() => {
+    isLockSupported().then(setLockSupported);
+    isLockEnabled().then(setLockOn);
+  }, []);
+
+  const run = async (label: string, task: () => Promise<void>, failTitle: string) => {
+    setBusy(label);
+    try {
+      await task();
+    } catch (e) {
+      Alert.alert(failTitle, errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleToggleLock = async (next: boolean) => {
+    const ok = await setLockEnabled(next);
+    if (ok) setLockOn(next);
+    else if (next) Alert.alert('Could not turn on app lock', 'Set up Face ID, fingerprint or a screen lock on this device first.');
+  };
+
+  const handleChangePassword = () =>
+    run('password', async () => {
+      if (newPassword !== confirmPassword) throw new Error('The two passwords do not match.');
+      const result = await changePassword(newPassword);
+      if (!result.ok) throw new Error(result.error);
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordOpen(false);
+      Alert.alert('Password updated', 'Use your new password next time you log in.');
+    }, 'Could not change password');
+
+  const handleLogoutOthers = () =>
+    Alert.alert('Log out other devices', 'Every other device signed in to your account will be logged out.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log them out',
+        style: 'destructive',
+        onPress: () =>
+          run('others', async () => {
+            await signOutOtherSessions();
+            Alert.alert('Done', 'All other sessions were logged out.');
+          }, 'Could not log out other devices'),
+      },
+    ]);
+
+  const handleDownload = () => run('export', exportMyData, 'Could not export your data');
+
+  const handlePause = (next: boolean) =>
+    run('pause', async () => {
+      setUser(await updateProfile(user, { is_paused: next }));
+      await queryClient.invalidateQueries({ queryKey: ['feed'] });
+    }, 'Could not update your account');
+
+  const handleReset = () =>
     Alert.alert(
-      'Revoke Device',
-      `Are you sure you want to log out ${device}?`,
+      'Reset all matches & swipes',
+      'This deletes your swipe history and unmatches everyone, including your chats. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Revoke',
+          text: 'Reset everything',
           style: 'destructive',
-          onPress: () => Alert.alert('Device Revoked', `${device} has been logged out.`),
+          onPress: () =>
+            run('reset', async () => {
+              await resetMySwipes();
+              await queryClient.invalidateQueries();
+              Alert.alert('Reset complete', 'Your feed and matches were cleared.');
+            }, 'Could not reset'),
         },
       ]
     );
-  };
 
-  const handleLogoutAllOther = () => {
+  const handleDelete = () =>
     Alert.alert(
-      'Log Out All Other Devices',
-      'This will terminate all active sessions except your current device.',
+      'Delete account permanently',
+      'This erases your profile, photos, matches and chats. It cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Log Out All',
+          text: 'Delete permanently',
           style: 'destructive',
-          onPress: () => Alert.alert('Success', 'All other active sessions have been terminated.'),
+          onPress: () => run('delete', deleteMyAccount, 'Could not delete your account'),
         },
       ]
     );
-  };
-
-  const handleDownloadData = () => {
-    Alert.alert(
-      'Request Data Export',
-      'Your GDPR data archive will be compiled and sent to your verified email within 24 hours.',
-      [{ text: 'Request Archive', onPress: () => Alert.alert('Requested', 'Data export link will be sent to your email.') }]
-    );
-  };
-
-  const handleResetMatches = () => {
-    Alert.alert(
-      'Reset All Matches & Swipes',
-      'This will reset all your active swipe history and unmatch all connections. This action cannot be undone!',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset Everything',
-          style: 'destructive',
-          onPress: () => Alert.alert('Reset Complete', 'Your feed and matches have been cleared.'),
-        },
-      ]
-    );
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'DELETE ACCOUNT PERMANENTLY',
-      'This will permanently erase your profile, photos, chat history, and biometric data. This action is irreversible!',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Permanently',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert('Account Deleted', 'Your account has been deleted.');
-            onBack();
-          },
-        },
-      ]
-    );
-  };
 
   return (
     <View style={styles.screenWrapper}>
       <StatusBar style="dark" />
       <DotGridBackground />
 
-      {/* Top Back Navigation (No bar, just the back button) */}
       <View style={styles.backNavRow}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={onBack}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <Ionicons name="chevron-back" size={24} color={colors.textDark} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.container}>
-          {/* Screen Title Block */}
           <View style={styles.screenHeader}>
             <Text style={styles.screenHeading}>ACCOUNT & SECURITY</Text>
-            <Text style={styles.screenSubheading}>Two-factor authentication, active devices & GDPR data control</Text>
+            <Text style={styles.screenSubheading}>Password, app lock, sessions and your data</Text>
           </View>
 
-          {/* 2. VAULT SECURED HERO BANNER */}
           <BrutalBox
             backgroundColor={colors.accentYellow}
             borderColor={colors.borderBlack}
@@ -139,51 +167,19 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
             <View style={styles.vaultIconSquare}>
               <Ionicons name="shield" size={22} color={colors.primaryPink} />
             </View>
-
             <View style={styles.vaultTextCol}>
-              <Text style={styles.vaultTitle}>VAULT SECURED</Text>
-              <Text style={styles.vaultSub}>LEVEL 3 SAFETY SHIELD ACTIVE</Text>
-            </View>
-
-            <View style={styles.vaultOkPill}>
-              <View style={styles.okDot} />
-              <Text style={styles.okText}>100% OK</Text>
+              <Text style={styles.vaultTitle}>{user.isVerifiedReal ? 'VERIFIED PROFILE' : 'NOT VERIFIED YET'}</Text>
+              <Text style={styles.vaultSub}>
+                {user.isVerifiedReal ? 'YOUR PROFILE HAS THE 100% REAL BADGE' : 'VERIFY IN THE SAFETY CENTRE'}
+              </Text>
             </View>
           </BrutalBox>
 
-          {/* 3. VERIFIED CREDENTIALS */}
           <View style={styles.sectionWrapper}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionHeading}>VERIFIED CREDENTIALS</Text>
-              <View style={styles.tagLockTight}>
-                <Text style={styles.tagLockTightText}>LOCK TIGHT</Text>
-              </View>
+              <Text style={styles.sectionHeading}>SIGN-IN</Text>
             </View>
 
-            {/* Credential 1: Phone */}
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2.4}
-              borderRadius={18}
-              shadowOffset={{ x: 3.5, y: 3.5 }}
-              style={styles.fullWidth}
-              contentStyle={styles.credCardContent}
-            >
-              <View style={styles.credIconBox}>
-                <Feather name="smartphone" size={18} color="#444" />
-              </View>
-              <View style={styles.credTextCol}>
-                <Text style={styles.credLabel}>PHONE NUMBER</Text>
-                <Text style={styles.credValue}>+1 (555) 382-9014</Text>
-              </View>
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="shield-checkmark" size={13} color={colors.textDark} />
-                <Text style={styles.verifiedBadgeText}>VERIFIED ✓</Text>
-              </View>
-            </BrutalBox>
-
-            {/* Credential 2: Email */}
             <BrutalBox
               backgroundColor={colors.cardWhite}
               borderColor={colors.borderBlack}
@@ -199,16 +195,11 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
               <View style={styles.credTextCol}>
                 <Text style={styles.credLabel}>EMAIL ADDRESS</Text>
                 <Text style={styles.credValue} numberOfLines={1}>
-                  {user.email || 'alex.rivers@gmail.com'}
+                  {user.email}
                 </Text>
-              </View>
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="shield-checkmark" size={13} color={colors.textDark} />
-                <Text style={styles.verifiedBadgeText}>VERIFIED ✓</Text>
               </View>
             </BrutalBox>
 
-            {/* Credential 3: 2FA */}
             <BrutalBox
               backgroundColor={colors.cardWhite}
               borderColor={colors.borderBlack}
@@ -216,61 +207,91 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
               borderRadius={18}
               shadowOffset={{ x: 3.5, y: 3.5 }}
               style={styles.fullWidth}
-              contentStyle={styles.credCardContent}
+              contentStyle={styles.passwordCardContent}
             >
-              <View style={styles.credIconBox}>
-                <Feather name="key" size={18} color="#444" />
-              </View>
-              <View style={styles.credTextCol}>
-                <Text style={styles.credLabel}>TWO-FACTOR AUTH (2FA)</Text>
-                <Text style={[styles.credValue, { color: colors.primaryPink }]}>
-                  SMS + Authenticator
-                </Text>
-              </View>
               <TouchableOpacity
-                onPress={() => setTwoFactorEnabled(!twoFactorEnabled)}
-                style={styles.enabledBadge}
+                style={styles.passwordHeaderRow}
+                onPress={() => setPasswordOpen((v) => !v)}
+                accessibilityRole="button"
+                accessibilityLabel="Change password"
               >
-                <Text style={styles.enabledBadgeText}>
-                  {twoFactorEnabled ? 'ENABLED ✓' : 'OFF'}
-                </Text>
+                <View style={styles.credIconBox}>
+                  <Feather name="key" size={18} color="#444" />
+                </View>
+                <View style={styles.credTextCol}>
+                  <Text style={styles.credLabel}>PASSWORD</Text>
+                  <Text style={styles.credValue}>Change your password</Text>
+                </View>
+                <Feather name={passwordOpen ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textDark} />
               </TouchableOpacity>
+
+              {passwordOpen && (
+                <View style={styles.passwordForm}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    placeholder="New password (8+ characters)"
+                    placeholderTextColor="#888"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    accessibilityLabel="New password"
+                  />
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    placeholder="Confirm new password"
+                    placeholderTextColor="#888"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    accessibilityLabel="Confirm new password"
+                  />
+                  <BrutalBox
+                    backgroundColor={colors.accentYellow}
+                    borderRadius={12}
+                    onPress={handleChangePassword}
+                    disabled={busy === 'password'}
+                    contentStyle={styles.passwordSave}
+                  >
+                    {busy === 'password' ? (
+                      <ActivityIndicator color={colors.textDark} />
+                    ) : (
+                      <Text style={styles.passwordSaveText}>UPDATE PASSWORD</Text>
+                    )}
+                  </BrutalBox>
+                </View>
+              )}
             </BrutalBox>
 
-            {/* Credential 4: Biometric App Lock */}
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2.4}
-              borderRadius={18}
-              shadowOffset={{ x: 3.5, y: 3.5 }}
-              style={styles.fullWidth}
-              contentStyle={styles.credCardContent}
-            >
-              <View style={styles.credIconBox}>
-                <Ionicons name="finger-print-outline" size={18} color="#444" />
-              </View>
-              <View style={styles.credTextCol}>
-                <Text style={styles.credLabel}>BIOMETRIC APP LOCK</Text>
-                <Text style={styles.credValue}>
-                  Face ID / PIN to Open App
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setBiometricLockEnabled(!biometricLockEnabled)}
-                style={[
-                  styles.enabledBadge,
-                  !biometricLockEnabled && { backgroundColor: '#F3F4F6' },
-                ]}
+            {lockSupported && (
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.4}
+                borderRadius={18}
+                shadowOffset={{ x: 3.5, y: 3.5 }}
+                style={styles.fullWidth}
+                contentStyle={styles.credCardContent}
               >
-                <Text style={styles.enabledBadgeText}>
-                  {biometricLockEnabled ? 'ACTIVE ✓' : 'OFF'}
-                </Text>
-              </TouchableOpacity>
-            </BrutalBox>
+                <View style={styles.credIconBox}>
+                  <Ionicons name="finger-print-outline" size={18} color="#444" />
+                </View>
+                <View style={styles.credTextCol}>
+                  <Text style={styles.credLabel}>APP LOCK</Text>
+                  <Text style={styles.credValue}>Biometrics or passcode to open</Text>
+                </View>
+                <Switch
+                  value={lockOn}
+                  onValueChange={handleToggleLock}
+                  trackColor={{ false: '#D1D5DB', true: colors.accentYellow }}
+                  thumbColor={lockOn ? '#000000' : '#FFFFFF'}
+                  accessibilityLabel="App lock"
+                />
+              </BrutalBox>
+            )}
           </View>
 
-          {/* 4. LOGGED IN DEVICES (2) */}
           <View style={styles.sectionWrapper}>
             <View style={styles.devicesHeaderWrap}>
               <BrutalBox
@@ -281,7 +302,7 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
                 shadowOffset={{ x: 2, y: 2 }}
                 contentStyle={styles.deviceHeaderBadge}
               >
-                <Text style={styles.deviceHeaderText}>LOGGED IN DEVICES (2)</Text>
+                <Text style={styles.deviceHeaderText}>SESSIONS</Text>
               </BrutalBox>
             </View>
 
@@ -294,50 +315,12 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
               style={styles.fullWidth}
               contentStyle={styles.deviceCardBox}
             >
-              {/* Device 1: iPhone 15 Pro */}
-              <View style={styles.deviceRow}>
-                <View style={[styles.deviceIconBox, { backgroundColor: '#EDE9FE' }]}>
-                  <Feather name="smartphone" size={18} color="#6D28D9" />
-                </View>
-                <View style={styles.deviceTextCol}>
-                  <Text style={styles.deviceName}>iPhone 15 Pro ●</Text>
-                  <Text style={styles.deviceMeta} numberOfLines={1}>
-                    Brooklyn, NY • Ping App ...
-                  </Text>
-                </View>
-                <View style={styles.currentDeviceBadge}>
-                  <Text style={styles.currentDeviceText}>CURRENT</Text>
-                </View>
-              </View>
-
-              <View style={styles.deviceDivider} />
-
-              {/* Device 2: MacBook Pro 14 */}
-              <View style={styles.deviceRow}>
-                <View style={[styles.deviceIconBox, { backgroundColor: '#F3F4F6' }]}>
-                  <Feather name="monitor" size={18} color="#374151" />
-                </View>
-                <View style={styles.deviceTextCol}>
-                  <Text style={styles.deviceName}>MacBook Pro 14”</Text>
-                  <Text style={styles.deviceMeta} numberOfLines={1}>
-                    Chrome Browser • Active...
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.revokeBadge}
-                  onPress={() => handleRevokeDevice('MacBook Pro 14"')}
-                >
-                  <Text style={styles.revokeText}>REVOKE</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.deviceDivider} />
-
-              {/* Log Out All Other Devices */}
               <TouchableOpacity
                 style={styles.logoutOtherBtn}
-                onPress={handleLogoutAllOther}
+                onPress={handleLogoutOthers}
+                disabled={busy === 'others'}
                 activeOpacity={0.8}
+                accessibilityRole="button"
               >
                 <Feather name="log-out" size={15} color="#9F1239" />
                 <Text style={styles.logoutOtherText}>LOG OUT OF ALL OTHER DEVICES</Text>
@@ -345,7 +328,6 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
             </BrutalBox>
           </View>
 
-          {/* 5. DATA PRIVACY */}
           <View style={styles.sectionWrapper}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionHeading}>DATA PRIVACY</Text>
@@ -363,11 +345,12 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
               style={styles.fullWidth}
               contentStyle={styles.privacyCardContent}
             >
-              {/* Item 1: Download My P!NG Data */}
               <TouchableOpacity
                 style={styles.privacyRow}
-                onPress={handleDownloadData}
+                onPress={handleDownload}
+                disabled={busy === 'export'}
                 activeOpacity={0.8}
+                accessibilityRole="button"
               >
                 <View style={[styles.deviceIconBox, { backgroundColor: '#E0E7FF' }]}>
                   <Feather name="download" size={18} color="#4338CA" />
@@ -375,40 +358,43 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
                 <View style={styles.credTextCol}>
                   <Text style={styles.privacyTitle}>Download My P!NG Data</Text>
                   <Text style={styles.privacySub} numberOfLines={1}>
-                    JSON archive of photos, chats...
+                    JSON copy of your profile, swipes and chats
                   </Text>
                 </View>
-                <View style={styles.circleArrowBtn}>
-                  <Feather name="arrow-right" size={18} color={colors.textDark} />
-                </View>
+                {busy === 'export' ? (
+                  <ActivityIndicator color={colors.textDark} />
+                ) : (
+                  <View style={styles.circleArrowBtn}>
+                    <Feather name="arrow-right" size={18} color={colors.textDark} />
+                  </View>
+                )}
               </TouchableOpacity>
 
               <View style={styles.deviceDivider} />
 
-              {/* Item 2: Pause Account */}
               <View style={styles.privacyRow}>
                 <View style={[styles.deviceIconBox, { backgroundColor: '#FEF08A' }]}>
                   <Feather name="pause-circle" size={18} color="#854D0E" />
                 </View>
                 <View style={styles.credTextCol}>
                   <Text style={styles.privacyTitle}>Pause Account</Text>
-                  <Text style={styles.privacySub} numberOfLines={1}>
-                    Hide card temporarily, keep ...
+                  <Text style={styles.privacySub} numberOfLines={2}>
+                    Hide your card from Discover. Matches and chats stay.
                   </Text>
                 </View>
                 <Switch
-                  value={pauseAccount}
-                  onValueChange={setPauseAccount}
+                  value={user.isPaused}
+                  onValueChange={handlePause}
+                  disabled={busy === 'pause'}
                   trackColor={{ false: '#D1D5DB', true: colors.accentYellow }}
-                  thumbColor={pauseAccount ? '#000000' : '#FFFFFF'}
+                  thumbColor={user.isPaused ? '#000000' : '#FFFFFF'}
+                  accessibilityLabel="Pause account"
                 />
               </View>
             </BrutalBox>
           </View>
 
-          {/* 6. DANGER ZONE (Matching Hazard Stripes Banner) */}
           <View style={styles.dangerOuter}>
-            {/* Caution Hazard Bar */}
             <View style={styles.hazardBar}>
               {[...Array(16)].map((_, i) => (
                 <View key={i} style={styles.hazardStripe} />
@@ -435,12 +421,10 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
               </View>
 
               <Text style={styles.dangerExplainer}>
-                Proceed with extreme caution! Irreversible destructive actions live below. Once
-                confirmed, there is no magic back-button.
+                These actions are permanent. Once confirmed there is no way back.
               </Text>
 
-              {/* Reset Matches Button */}
-              <TouchableOpacity activeOpacity={0.85} onPress={handleResetMatches}>
+              <TouchableOpacity activeOpacity={0.85} onPress={handleReset} disabled={busy === 'reset'} accessibilityRole="button">
                 <BrutalBox
                   backgroundColor="#FFFFFF"
                   borderColor={colors.borderBlack}
@@ -455,8 +439,7 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
                 </BrutalBox>
               </TouchableOpacity>
 
-              {/* Delete Account Button */}
-              <TouchableOpacity activeOpacity={0.85} onPress={handleDeleteAccount}>
+              <TouchableOpacity activeOpacity={0.85} onPress={handleDelete} disabled={busy === 'delete'} accessibilityRole="button">
                 <BrutalBox
                   backgroundColor="#9F1239"
                   borderColor={colors.borderBlack}
@@ -466,25 +449,16 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
                   style={styles.fullWidth}
                   contentStyle={styles.deleteBtn}
                 >
-                  <MaterialCommunityIcons name="skull" size={20} color="#FFFFFF" />
-                  <Text style={styles.deleteBtnText}>DELETE ACCOUNT PERMANENTLY</Text>
+                  {busy === 'delete' ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <MaterialCommunityIcons name="skull" size={20} color="#FFFFFF" />
+                      <Text style={styles.deleteBtnText}>DELETE ACCOUNT PERMANENTLY</Text>
+                    </>
+                  )}
                 </BrutalBox>
               </TouchableOpacity>
-            </BrutalBox>
-          </View>
-
-          {/* 7. ENCRYPTED PROTOCOL FOOTER */}
-          <View style={styles.footerWrap}>
-            <BrutalBox
-              backgroundColor="#EDE9FE"
-              borderColor={colors.borderBlack}
-              borderWidth={2}
-              borderRadius={999}
-              shadowOffset={{ x: 2, y: 2 }}
-              contentStyle={styles.footerBadge}
-            >
-              <Feather name="lock" size={13} color="#4C1D95" />
-              <Text style={styles.footerText}>ENCRYPTED WITH 256-BIT P!NG PROTOCOL</Text>
             </BrutalBox>
           </View>
         </View>
@@ -494,6 +468,40 @@ export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  passwordCardContent: {
+    padding: 14,
+    gap: 12,
+  },
+  passwordHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  passwordForm: {
+    gap: 10,
+    paddingTop: 4,
+  },
+  passwordInput: {
+    height: 46,
+    borderWidth: 2,
+    borderColor: colors.borderBlack,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontFamily: typography.bodySemiBold,
+    color: colors.textDark,
+  },
+  passwordSave: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  passwordSaveText: {
+    fontSize: 14,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+    letterSpacing: 0.5,
+  },
   screenWrapper: {
     flex: 1,
     backgroundColor: '#FAF7F2',

@@ -97,7 +97,9 @@ export async function markRead(matchId: string): Promise<void> {
 export function subscribeToMessages(
   matchId: string,
   onInsert: (message: ChatMessage) => void,
-  onUpdate: (message: ChatMessage) => void
+  onUpdate: (message: ChatMessage) => void,
+  /** Called each time the channel becomes live (first connect and every reconnect). */
+  onLive?: () => void
 ): () => void {
   const channel = supabase
     .channel(`messages:${matchId}`)
@@ -111,7 +113,9 @@ export function subscribeToMessages(
       { event: 'UPDATE', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` },
       (payload) => onUpdate(toChatMessage(payload.new as MessageRow))
     )
-    .subscribe();
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') onLive?.();
+    });
   return () => {
     supabase.removeChannel(channel);
   };

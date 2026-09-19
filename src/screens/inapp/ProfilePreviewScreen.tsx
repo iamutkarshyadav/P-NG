@@ -10,102 +10,33 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import Svg, { Circle, Path, G, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { Image } from 'expo-image';
+import { useQuery } from '@tanstack/react-query';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { DotGridBackground } from '../../components/DotGridBackground';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
+import { ProfileEditor } from '../../components/ProfileEditor';
+import { usePhotos } from '../../hooks/usePhotos';
+import { fetchAllTags, fetchMyTagIds } from '../../services/tags';
+import { paletteFor } from '../../lib/palette';
 
 interface ProfilePreviewScreenProps {
   user: UserAccount;
   onBack: () => void;
 }
 
-function AlexHeroIllustration() {
+function PortraitPlaceholder({ seed }: { seed: string }) {
+  const p = paletteFor(seed);
   return (
-    <Svg width="100%" height="280" viewBox="0 0 340 280">
-      {/* City/Coffee shop background aesthetic */}
-      <Rect x="0" y="0" width="340" height="280" fill="#FDF2F8" />
-
-      {/* Decorative city signs / background grid */}
-      <Rect x="20" y="30" width="60" height="90" fill="#FCE7F3" stroke="#F472B6" strokeWidth="1" />
-      <Rect x="260" y="40" width="65" height="110" fill="#FEF3C7" stroke="#F59E0B" strokeWidth="1" />
-      <SvgText x="30" y="52" fontSize="7.5" fill="#9D174D" fontWeight="bold">
-        COFFEE & TAPE
-      </SvgText>
-
-      {/* Character body */}
-      <G transform="translate(70, 30)">
-        {/* Denim Jacket body */}
-        <Path
-          d="M 20 180 L 40 120 Q 100 110 160 120 L 180 180 Z"
-          fill="#3B82F6"
-          stroke="#000"
-          strokeWidth="2.8"
-        />
-        {/* Jacket collar and red inner shirt */}
-        <Path d="M 70 118 L 100 148 L 130 118" fill="#EF4444" stroke="#000" strokeWidth="2.5" />
-        <Path d="M 50 120 L 80 160" stroke="#1D4ED8" strokeWidth="2" />
-        <Path d="M 150 120 L 120 160" stroke="#1D4ED8" strokeWidth="2" />
-
-        {/* Neck */}
-        <Rect x="85" y="96" width="30" height="26" fill="#FDE68A" stroke="#000" strokeWidth="2" />
-
-        {/* Face */}
-        <Circle cx="100" cy="75" r="38" fill="#FED7AA" stroke="#000" strokeWidth="2.8" />
-
-        {/* Dark Hair peeking */}
-        <Path
-          d="M 64 65 Q 58 85 68 95"
-          stroke="#18181B"
-          strokeWidth="4.5"
-          fill="none"
-          strokeLinecap="round"
-        />
-        <Path
-          d="M 136 65 Q 142 85 132 95"
-          stroke="#18181B"
-          strokeWidth="4.5"
-          fill="none"
-          strokeLinecap="round"
-        />
-
-        {/* Yellow Beanie */}
-        <Path
-          d="M 62 58 Q 100 22 138 58 L 140 68 Q 100 62 60 68 Z"
-          fill="#F59E0B"
-          stroke="#000"
-          strokeWidth="2.8"
-        />
-        {/* Beanie lines */}
-        <Path d="M 75 48 L 78 64" stroke="#D97706" strokeWidth="2" />
-        <Path d="M 90 38 L 92 63" stroke="#D97706" strokeWidth="2" />
-        <Path d="M 110 38 L 108 63" stroke="#D97706" strokeWidth="2" />
-        <Path d="M 125 48 L 122 64" stroke="#D97706" strokeWidth="2" />
-
-        {/* Eyebrows */}
-        <Path d="M 78 68 Q 88 63 94 69" stroke="#18181B" strokeWidth="3" fill="none" strokeLinecap="round" />
-        <Path d="M 106 69 Q 112 63 122 68" stroke="#18181B" strokeWidth="3" fill="none" strokeLinecap="round" />
-
-        {/* Eyes with sparkle */}
-        <Circle cx="86" cy="77" r="4.5" fill="#18181B" />
-        <Circle cx="114" cy="77" r="4.5" fill="#18181B" />
-        <Circle cx="84.5" cy="75" r="1.8" fill="#FFF" />
-        <Circle cx="112.5" cy="75" r="1.8" fill="#FFF" />
-
-        {/* Nose */}
-        <Path d="M 100 76 L 97 86 L 103 86" stroke="#92400E" strokeWidth="2" fill="none" strokeLinecap="round" />
-
-        {/* Warm confident smirk */}
-        <Path d="M 86 94 Q 100 106 114 94" stroke="#991B1B" strokeWidth="3.2" fill="none" strokeLinecap="round" />
-        <Path d="M 90 95 Q 100 101 110 95" fill="#FFF" />
-
-        {/* Ear & Earring */}
-        <Circle cx="138" cy="80" r="3.5" fill="#FED7AA" stroke="#000" strokeWidth="1.8" />
-        <Circle cx="139" cy="83" r="1.8" fill="#FFE600" stroke="#000" strokeWidth="1" />
-      </G>
+    <Svg width="100%" height="100%" viewBox="0 0 340 280" preserveAspectRatio="xMidYMid slice">
+      <Rect width="340" height="280" fill={p.bgFrom} />
+      <Circle cx="170" cy="110" r="46" fill={p.flat} stroke="#000" strokeWidth="3" />
+      <Path d="M 122 105 Q 170 45 218 105 Q 190 82 170 86 Q 150 82 122 105 Z" fill={p.hair} />
+      <Path d="M 70 280 Q 80 190 170 190 Q 260 190 270 280 Z" fill={p.jacket} stroke="#000" strokeWidth="3" />
     </Svg>
   );
 }
@@ -114,18 +45,18 @@ export const ProfilePreviewScreen: React.FC<ProfilePreviewScreenProps> = ({
   user,
   onBack,
 }) => {
-  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
+  const [mode, setMode] = useState<'preview' | 'edit'>('preview');
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const { photos } = usePhotos(user.id);
+  const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchAllTags, staleTime: 10 * 60_000 });
+  const myTagsQuery = useQuery({ queryKey: ['my-tags', user.id], queryFn: () => fetchMyTagIds(user.id) });
+  const myTags = (tagsQuery.data ?? []).filter((t) => (myTagsQuery.data ?? []).includes(t.id));
 
-  const displayName = user.name || 'ALEX';
-  const displayAge = user.age || 26;
+  const displayName = user.name;
+  const displayAge = user.age;
   const displayBio =
-    user.bio && user.bio.trim().length > 0
-      ? user.bio
-      : 'Beach walks at sunrise, ridiculously spicy carnitas tacos, indie cinema retrospectives, and patching analog modular synthesizers till 3AM. If you know how to build a tape loop, we’re officially locked in.';
-
-  const handleVoiceToggle = () => {
-    setIsPlayingVoice(!isPlayingVoice);
-  };
+    user.bio && user.bio.trim().length > 0 ? user.bio : 'Add a short bio so people know who you are.';
+  const shownPhoto = photos.length > 0 ? photos[Math.min(photoIndex, photos.length - 1)] : undefined;
 
   const handleDisabledAction = () => {
     Alert.alert(
@@ -151,14 +82,28 @@ export const ProfilePreviewScreen: React.FC<ProfilePreviewScreenProps> = ({
           {/* Screen Title Block */}
           <View style={styles.screenHeader}>
             <View style={styles.previewTitleRow}>
-              <Text style={styles.screenHeading}>PROFILE PREVIEW</Text>
-              <View style={styles.howOthersSeePill}>
-                <Feather name="eye" size={12} color="#000" />
-                <Text style={styles.howOthersSeeText}>HOW OTHERS SEE YOU</Text>
-              </View>
+              <Text style={styles.screenHeading}>{mode === 'preview' ? 'PROFILE PREVIEW' : 'EDIT PROFILE'}</Text>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setMode(mode === 'preview' ? 'edit' : 'preview')}
+                style={styles.howOthersSeePill}
+                accessibilityRole="button"
+                accessibilityLabel={mode === 'preview' ? 'Edit your profile' : 'Back to preview'}
+              >
+                <Feather name={mode === 'preview' ? 'edit-2' : 'eye'} size={12} color="#000" />
+                <Text style={styles.howOthersSeeText}>{mode === 'preview' ? 'EDIT PROFILE' : 'VIEW PREVIEW'}</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.screenSubheading}>This is how potential matches view your card stack and prompts</Text>
+            <Text style={styles.screenSubheading}>
+              {mode === 'preview'
+                ? 'This is how potential matches see your card'
+                : 'Update your details and photos'}
+            </Text>
           </View>
+
+          {mode === 'edit' && <ProfileEditor user={user} onDone={() => setMode('preview')} />}
+          {mode === 'preview' && (
+            <>
 
           {/* 3. HERO DATING CARD */}
           <BrutalBox
@@ -171,116 +116,58 @@ export const ProfilePreviewScreen: React.FC<ProfilePreviewScreenProps> = ({
             contentStyle={styles.heroCardContent}
           >
             {/* Story Indicator dashes */}
-            <View style={styles.storyIndicatorsRow}>
-              <View style={[styles.storyDash, styles.storyDashActive]} />
-              <View style={styles.storyDash} />
-              <View style={styles.storyDash} />
-              <View style={styles.storyDash} />
-            </View>
+            {photos.length > 1 && (
+              <View style={styles.storyIndicatorsRow}>
+                {photos.map((p, i) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.storyDash, i === photoIndex && styles.storyDashActive]}
+                    onPress={() => setPhotoIndex(i)}
+                    accessibilityLabel={`Show photo ${i + 1}`}
+                  />
+                ))}
+              </View>
+            )}
 
             {/* 100% REAL Floating Top Badge */}
-            <View style={styles.realBadgeHero}>
-              <Ionicons name="shield-checkmark" size={13} color="#000" />
-              <Text style={styles.realBadgeHeroText}>100% REAL</Text>
-            </View>
+            {user.isVerifiedReal && (
+              <View style={styles.realBadgeHero}>
+                <Ionicons name="shield-checkmark" size={13} color="#000" />
+                <Text style={styles.realBadgeHeroText}>100% REAL</Text>
+              </View>
+            )}
 
             {/* Hero Illustration */}
             <View style={styles.heroImageWrapper}>
-              <AlexHeroIllustration />
+              {shownPhoto?.url ? (
+                <Image source={{ uri: shownPhoto.url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+              ) : (
+                <PortraitPlaceholder seed={user.id} />
+              )}
             </View>
 
             {/* Profile Info Overlay at bottom of Hero Card */}
             <View style={styles.heroInfoOverlay}>
               <View style={styles.nameProRow}>
-                <Text style={styles.heroNameText}>{displayName.toUpperCase()}, {displayAge}</Text>
-                <View style={styles.proBadge}>
-                  <Text style={styles.proBadgeText}>PRO</Text>
-                </View>
+                <Text style={styles.heroNameText}>
+                  {displayName.toUpperCase()}
+                  {displayAge ? `, ${displayAge}` : ''}
+                </Text>
               </View>
 
               <View style={styles.badgesUnderNameRow}>
                 <View style={styles.activeTodayPill}>
                   <View style={styles.activeDot} />
-                  <Text style={styles.activeTodayText}>ACTIVE TODAY</Text>
+                  <Text style={styles.activeTodayText}>ACTIVE NOW</Text>
                 </View>
 
-                <View style={styles.distancePill}>
-                  <Feather name="navigation" size={11} color="#000" />
-                  <Text style={styles.distanceText}>UNDER 3 KM AWAY</Text>
-                </View>
+                {user.city ? (
+                  <View style={styles.distancePill}>
+                    <Feather name="navigation" size={11} color="#000" />
+                    <Text style={styles.distanceText}>{user.city.toUpperCase()}</Text>
+                  </View>
+                ) : null}
               </View>
-            </View>
-          </BrutalBox>
-
-          {/* 4. VIBE COMPATIBILITY BANNER */}
-          <BrutalBox
-            backgroundColor={colors.accentYellow}
-            borderColor={colors.borderBlack}
-            borderWidth={2.8}
-            borderRadius={20}
-            shadowOffset={{ x: 4, y: 4 }}
-            style={styles.fullWidth}
-            contentStyle={styles.vibeBannerContent}
-          >
-            <View style={styles.vibePercentCircle}>
-              <Text style={styles.vibePercentNumber}>94%</Text>
-            </View>
-
-            <View style={styles.vibeTextCol}>
-              <Text style={styles.vibeBannerTitle}>VIBE COMPATIBILITY</Text>
-              <Text style={styles.vibeBannerSub}>
-                You both obsess over analog synths & flea markets!
-              </Text>
-            </View>
-
-            <Ionicons name="flash" size={24} color="#000" />
-          </BrutalBox>
-
-          {/* 5. VOICE NOTE PLAYER CARD */}
-          <BrutalBox
-            backgroundColor="#9F1239"
-            borderColor={colors.borderBlack}
-            borderWidth={2.8}
-            borderRadius={20}
-            shadowOffset={{ x: 4, y: 4 }}
-            style={styles.fullWidth}
-            contentStyle={styles.voiceNoteContent}
-          >
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={handleVoiceToggle}
-              style={styles.voicePlayCircle}
-            >
-              <Ionicons
-                name={isPlayingVoice ? 'pause' : 'play'}
-                size={22}
-                color="#BE123C"
-                style={{ marginLeft: isPlayingVoice ? 0 : 3 }}
-              />
-            </TouchableOpacity>
-
-            <View style={styles.voiceTextCol}>
-              <View style={styles.voicePillRow}>
-                <View style={styles.voiceTagPill}>
-                  <Text style={styles.voiceTagText}>VOICE NOTE</Text>
-                </View>
-                <Text style={styles.voiceDurationText}>0:18</Text>
-              </View>
-
-              <Text style={styles.voiceQuoteText}>
-                "How I take my coffee & record shop lore"
-              </Text>
-            </View>
-
-            {/* Sound waveform graphic */}
-            <View style={styles.waveformRow}>
-              <View style={[styles.waveBar, { height: 12 }]} />
-              <View style={[styles.waveBar, { height: 22 }]} />
-              <View style={[styles.waveBar, { height: 16 }]} />
-              <View style={[styles.waveBar, { height: 28 }]} />
-              <View style={[styles.waveBar, { height: 20 }]} />
-              <View style={[styles.waveBar, { height: 24 }]} />
-              <View style={[styles.waveBar, { height: 14 }]} />
             </View>
           </BrutalBox>
 
@@ -304,74 +191,27 @@ export const ProfilePreviewScreen: React.FC<ProfilePreviewScreenProps> = ({
             </BrutalBox>
           </View>
 
-          {/* 7. PROMPT CARD 1: MY IDEAL SUNDAY */}
-          <BrutalBox
-            backgroundColor="#FCE7F3"
-            borderColor={colors.borderBlack}
-            borderWidth={2.8}
-            borderRadius={20}
-            shadowOffset={{ x: 4, y: 4 }}
-            style={styles.fullWidth}
-            contentStyle={styles.promptCardContent}
-          >
-            <View style={styles.promptTagPill}>
-              <Text style={styles.promptTagText}>MY IDEAL SUNDAY ☕</Text>
-            </View>
-            <Text style={styles.promptResponseText}>
-              Grabbing double-shot flat whites and hunting dusty Japanese jazz fusion vinyls at neighbourhood flea markets.
-            </Text>
-          </BrutalBox>
-
-          {/* 8. PROMPT CARD 2: CONVERSATION STARTER */}
-          <BrutalBox
-            backgroundColor="#EDE9FE"
-            borderColor={colors.borderBlack}
-            borderWidth={2.8}
-            borderRadius={20}
-            shadowOffset={{ x: 4, y: 4 }}
-            style={styles.fullWidth}
-            contentStyle={styles.promptCardContent}
-          >
-            <View style={styles.promptTagPill}>
-              <Text style={styles.promptTagText}>CONVERSATION STARTER 📻</Text>
-            </View>
-            <Text style={styles.promptResponseText}>
-              Tell me the objectively worst pop song you secretly crank with zero remorse when driving solo.
-            </Text>
-          </BrutalBox>
-
           {/* 9. OBSESSIONS & RIG */}
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionHeading}>OBSESSIONS & RIG</Text>
             <View style={styles.tagCountPill}>
-              <Text style={styles.tagCountText}>6 TAGS</Text>
+              <Text style={styles.tagCountText}>
+                {myTags.length} {myTags.length === 1 ? 'TAG' : 'TAGS'}
+              </Text>
             </View>
           </View>
 
           <View style={styles.tagsContainer}>
-            <View style={[styles.tagChip, { backgroundColor: '#FFFFFF' }]}>
-              <Text style={styles.tagChipText}>☕ Flat White Purist</Text>
-            </View>
-
-            <View style={[styles.tagChip, { backgroundColor: colors.accentYellow }]}>
-              <Text style={styles.tagChipText}>💛 🧗 Bouldering 6B</Text>
-            </View>
-
-            <View style={[styles.tagChip, { backgroundColor: '#FFFFFF' }]}>
-              <Text style={styles.tagChipText}>📻 Modular Synths</Text>
-            </View>
-
-            <View style={[styles.tagChip, { backgroundColor: '#E2DCFE' }]}>
-              <Text style={styles.tagChipText}>✪ 📐 Bauhaus Design</Text>
-            </View>
-
-            <View style={[styles.tagChip, { backgroundColor: '#FFFFFF' }]}>
-              <Text style={styles.tagChipText}>🍣 Omakase Nights</Text>
-            </View>
-
-            <View style={[styles.tagChip, { backgroundColor: '#FFD5E5' }]}>
-              <Text style={styles.tagChipText}>📷 35mm Point & Shoot</Text>
-            </View>
+            {myTags.map((tag, idx) => (
+              <View
+                key={tag.id}
+                style={[styles.tagChip, { backgroundColor: idx % 3 === 1 ? colors.accentYellow : tag.tint || '#FFFFFF' }]}
+              >
+                <Text style={styles.tagChipText}>
+                  {tag.emoji} {tag.name}
+                </Text>
+              </View>
+            ))}
           </View>
 
           {/* 10. PREVIEW BOTTOM DECK */}
@@ -429,6 +269,8 @@ export const ProfilePreviewScreen: React.FC<ProfilePreviewScreenProps> = ({
               </Text>
             </View>
           </BrutalBox>
+            </>
+          )}
         </View>
       </ScrollView>
     </View>

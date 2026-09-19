@@ -8,10 +8,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
@@ -45,6 +45,8 @@ import {
   signUpWithEmail,
 } from './src/services/auth';
 import { AppHomeScreen } from './src/screens/AppHomeScreen';
+import { AppLockGate } from './src/components/AppLockGate';
+import { unregisterPush } from './src/services/push';
 import { OnboardingAgeScreen } from './src/screens/OnboardingAgeScreen';
 import { OnboardingNameScreen } from './src/screens/OnboardingNameScreen';
 import { OnboardingIdentityScreen } from './src/screens/OnboardingIdentityScreen';
@@ -61,11 +63,13 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <SessionProvider>
-        <AppShell />
-      </SessionProvider>
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <SessionProvider>
+          <AppShell />
+        </SessionProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -156,6 +160,7 @@ function AppShell() {
   };
 
   const handleLogout = async () => {
+    await unregisterPush();
     await signOut();
     if (env.enableDevLogins) await handleQuickFill('alex');
   };
@@ -247,26 +252,29 @@ function AppShell() {
     }
 
     return (
-      <AppHomeScreen
-        user={user}
-        onLogout={handleLogout}
-        onSwitchToDemo={
-          env.enableDevLogins
-            ? async (demo) => {
-                await signOut();
-                await handleQuickFill(demo);
-              }
-            : undefined
-        }
-        onReplayOnboarding={
-          env.enableDevLogins
-            ? () => {
-                setStepOverride(1);
-                setReplaying(true);
-              }
-            : undefined
-        }
-      />
+      <AppLockGate>
+        <AppHomeScreen
+          user={user}
+          onLogout={handleLogout}
+          onSwitchToDemo={
+            env.enableDevLogins
+              ? async (demo) => {
+                  await unregisterPush();
+                  await signOut();
+                  await handleQuickFill(demo);
+                }
+              : undefined
+          }
+          onReplayOnboarding={
+            env.enableDevLogins
+              ? () => {
+                  setStepOverride(1);
+                  setReplaying(true);
+                }
+              : undefined
+          }
+        />
+      </AppLockGate>
     );
   }
 

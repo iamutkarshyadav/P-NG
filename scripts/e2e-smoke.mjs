@@ -48,7 +48,7 @@ check('my_matches lists the new match', matches.some((m) => m.match_id === match
 
 // Realtime: subscribe (with the same match_id filter the app uses) and verify the insert is delivered back.
 const received = new Promise((resolve) => {
-  const timer = setTimeout(() => resolve(null), 8000);
+  const timer = setTimeout(() => resolve(null), 12000);
   supabase
     .channel(`smoke:${matchId}`)
     .on(
@@ -59,10 +59,11 @@ const received = new Promise((resolve) => {
         resolve(payload.new);
       }
     )
-    .subscribe(async (status) => {
+    .subscribe(async (status, err) => {
+      console.log('  realtime status:', status, err?.message ?? '');
       if (status === 'SUBSCRIBED') {
         // SUBSCRIBED fires slightly before the server starts streaming changes.
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 4000));
         await supabase.from('messages').insert({ match_id: matchId, sender_id: me, body: 'smoke test hello' });
       }
     });

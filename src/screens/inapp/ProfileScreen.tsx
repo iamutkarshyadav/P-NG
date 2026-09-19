@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,18 +8,19 @@ import {
   Alert,
   Modal,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import Svg, {
-  Circle,
-  Path,
-  G,
-} from 'react-native-svg';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ProfileAvatar } from '../../components/ProfileAvatar';
+import { usePhotos } from '../../hooks/usePhotos';
+import { fetchAllTags, fetchMyTagIds, saveMyTags } from '../../services/tags';
+import { errorMessage } from '../../services/errors';
 import { AccountSecurityScreen } from './AccountSecurityScreen';
 import { PreferencesScreen } from './PreferencesScreen';
 import { SafetyCenterScreen } from './SafetyCenterScreen';
@@ -36,63 +37,6 @@ interface ProfileScreenProps {
   initialSubScreen?: 'none' | 'account' | 'preferences' | 'safety' | 'settings' | 'preview';
 }
 
-function AvatarAlex() {
-  return (
-    <Svg width="140" height="140" viewBox="0 0 140 140">
-      {/* Yellow Background Circle */}
-      <Circle cx="70" cy="70" r="66" fill="#FFE600" />
-      <Circle cx="70" cy="70" r="66" stroke="#000" strokeWidth="2.5" />
-
-      <G transform="translate(15, 12)">
-        {/* Face */}
-        <Circle cx="55" cy="58" r="30" fill="#FED7AA" />
-
-        {/* Yellow Beanie */}
-        <Path
-          d="M 26 44 Q 55 18 84 44 L 86 52 Q 55 48 24 52 Z"
-          fill="#F59E0B"
-          stroke="#000"
-          strokeWidth="2.2"
-        />
-        {/* Beanie Ribbing Lines */}
-        <Path d="M 36 34 L 38 48" stroke="#D97706" strokeWidth="1.8" />
-        <Path d="M 48 27 L 49 47" stroke="#D97706" strokeWidth="1.8" />
-        <Path d="M 62 27 L 61 47" stroke="#D97706" strokeWidth="1.8" />
-        <Path d="M 74 34 L 72 48" stroke="#D97706" strokeWidth="1.8" />
-
-        {/* Short Dark Hair peeking */}
-        <Path d="M 23 50 Q 20 62 25 68" stroke="#18181B" strokeWidth="3" fill="none" strokeLinecap="round" />
-        <Path d="M 87 50 Q 90 62 85 68" stroke="#18181B" strokeWidth="3" fill="none" strokeLinecap="round" />
-
-        {/* Eyebrows */}
-        <Path d="M 38 52 Q 45 49 50 53" fill="none" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" />
-        <Path d="M 60 53 Q 65 49 72 52" fill="none" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" />
-
-        {/* Eyes */}
-        <Circle cx="44" cy="59" r="4" fill="#18181B" />
-        <Circle cx="66" cy="59" r="4" fill="#18181B" />
-        <Circle cx="42.5" cy="57.5" r="1.5" fill="#FFF" />
-        <Circle cx="64.5" cy="57.5" r="1.5" fill="#FFF" />
-
-        {/* Nose */}
-        <Path d="M 55 58 L 53 66 L 57 66" fill="none" stroke="#78350F" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Warm Smile */}
-        <Path d="M 44 73 Q 55 83 66 73" fill="none" stroke="#991B1B" strokeWidth="2.5" strokeLinecap="round" />
-        <Path d="M 47 74 Q 55 79 63 74" fill="#FFF" />
-
-        {/* Ear & Earring */}
-        <Circle cx="86" cy="62" r="2.5" fill="#FFF" stroke="#000" strokeWidth="1" />
-
-        {/* Colorful Shirt */}
-        <Path d="M 12 115 L 25 86 Q 55 80 85 86 L 98 115 Z" fill="#2563EB" stroke="#000" strokeWidth="2.4" />
-        <Path d="M 40 84 L 55 102 L 70 84" fill="#DC2626" stroke="#000" strokeWidth="2" />
-        <Circle cx="55" cy="108" r="2.5" fill="#FFE600" />
-      </G>
-    </Svg>
-  );
-}
-
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   user,
   onLogout,
@@ -104,15 +48,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showInterestsModal, setShowInterestsModal] = useState(false);
-  const [userInterests, setUserInterests] = useState<string[]>([
-    'Flat White Enthusiast',
-    'Bouldering 6B',
-    'Analog Vinyl',
-    'Modernist Design',
-    'Omakase Nights',
-    '35mm Film Photography',
-  ]);
-  const [tempInterests, setTempInterests] = useState<string[]>([]);
+  const queryClient = useQueryClient();
+  const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchAllTags, staleTime: 10 * 60_000 });
+  const myTagsQuery = useQuery({ queryKey: ['my-tags', user.id], queryFn: () => fetchMyTagIds(user.id) });
+  const { photos } = usePhotos(user.id);
+  const [savingInterests, setSavingInterests] = useState(false);
+  const allTags = useMemo(() => tagsQuery.data ?? [], [tagsQuery.data]);
+  const myTagIds = useMemo(() => myTagsQuery.data ?? [], [myTagsQuery.data]);
+  const userInterests = useMemo(
+    () => allTags.filter((t) => myTagIds.includes(t.id)).map((t) => t.name),
+    [allTags, myTagIds]
+  );
+  const [tempTagIds, setTempTagIds] = useState<number[]>([]);
 
   const [activeSubScreen, setActiveSubScreen] = useState<
     'none' | 'account' | 'preferences' | 'safety' | 'settings' | 'preview'
@@ -130,12 +77,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   }, [activeSubScreen, onSubScreenChange]);
 
-  const displayName = user.name || 'ALEX';
-  const displayAge = user.age || 26;
+  const displayName = user.name;
+  const displayAge = user.age;
   const displayBio =
-    user.bio && user.bio.trim().length > 0
-      ? user.bio
-      : 'Beach walks, spicy tacos, art galleries & making analog synth music.';
+    user.bio && user.bio.trim().length > 0 ? user.bio : 'Add a short bio so people know who you are.';
 
   const handleEditPress = () => {
     if (onEditProfile) {
@@ -146,29 +91,35 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const handleManageInterests = () => {
-    setTempInterests([...userInterests]);
+    setTempTagIds([...myTagIds]);
     setShowInterestsModal(true);
   };
 
-  const toggleTempInterest = (interest: string) => {
-    if (tempInterests.includes(interest)) {
-      if (tempInterests.length > 1) {
-        setTempInterests(tempInterests.filter((i) => i !== interest));
+  const toggleTempInterest = (tagId: number) => {
+    if (tempTagIds.includes(tagId)) {
+      if (tempTagIds.length > 1) {
+        setTempTagIds(tempTagIds.filter((id) => id !== tagId));
       } else {
         Alert.alert('Minimum Interests', 'Keep at least 1 interest so matches know your vibe.');
       }
+    } else if (tempTagIds.length < 8) {
+      setTempTagIds([...tempTagIds, tagId]);
     } else {
-      if (tempInterests.length < 8) {
-        setTempInterests([...tempInterests, interest]);
-      } else {
-        Alert.alert('Maximum Reached', 'You can select up to 8 core interests.');
-      }
+      Alert.alert('Maximum Reached', 'You can select up to 8 core interests.');
     }
   };
 
-  const handleSaveInterests = () => {
-    setUserInterests(tempInterests);
-    setShowInterestsModal(false);
+  const handleSaveInterests = async () => {
+    setSavingInterests(true);
+    try {
+      await saveMyTags(user.id, tempTagIds);
+      await queryClient.invalidateQueries({ queryKey: ['my-tags', user.id] });
+      setShowInterestsModal(false);
+    } catch (e) {
+      Alert.alert('Could not save', errorMessage(e));
+    } finally {
+      setSavingInterests(false);
+    }
   };
 
   const handleSettingItem = (title: string) => {
@@ -254,8 +205,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         {/* 2. Hero Avatar Section */}
         <View style={styles.heroSection}>
           <View style={styles.avatarContainer}>
-            <AvatarAlex />
-            {/* 100% REAL Floating Badge */}
+            <ProfileAvatar
+              uri={photos[0]?.url}
+              seed={user.id}
+              size={132}
+              style={styles.heroAvatar}
+              accessibilityLabel="Your primary photo"
+            />
+            {user.isVerifiedReal && (
+              <>
             <View style={styles.realBadgeWrapper}>
               <BrutalBox
                 backgroundColor={colors.accentYellow}
@@ -271,12 +229,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 </View>
               </BrutalBox>
             </View>
+              </>
+            )}
           </View>
 
           {/* User Name & Age */}
           <View style={styles.nameRow}>
             <Text style={styles.nameText}>
-              {displayName.toUpperCase()}, {displayAge}
+              {displayName.toUpperCase()}{displayAge ? `, ${displayAge}` : ''}
             </Text>
             <Ionicons name="flash" size={22} color={colors.primaryPink} />
           </View>
@@ -356,6 +316,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
               {/* Interest Pills */}
               <View style={styles.chipsContainer}>
+                {userInterests.length === 0 && <Text style={styles.bioBodyText}>No interests yet. Tap MANAGE to add some.</Text>}
                 {userInterests.map((interest, idx) => {
                   const pillColors = ['#FFD5E5', '#E2DCFE', '#FFE600', '#FAF7F2', '#D1FAE5', '#FEF08A'];
                   const bg = pillColors[idx % pillColors.length];
@@ -695,30 +656,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <View style={styles.modalBody}>
                 <Text style={styles.modalTitle}>MANAGE INTERESTS</Text>
                 <Text style={styles.modalSubtitle}>
-                  Select passions & hobbies to showcase on your card ({tempInterests.length}/8 active).
+                  Select passions & hobbies to showcase on your card ({tempTagIds.length}/8 active).
                 </Text>
 
                 <View style={styles.modalVibesGrid}>
-                  {[
-                    'Flat White Enthusiast',
-                    'Bouldering 6B',
-                    'Analog Vinyl',
-                    'Modernist Design',
-                    'Omakase Nights',
-                    '35mm Film Photography',
-                    'Modular Synths',
-                    'Indie Cinema',
-                    'Natural Wine',
-                    'Ceramics & Clay',
-                    'Bauhaus Architecture',
-                    'Dog Walking',
-                  ].map((item) => {
-                    const isSelected = tempInterests.includes(item);
+                  {allTags.map((tag) => {
+                    const item = tag.name;
+                    const isSelected = tempTagIds.includes(tag.id);
                     return (
                       <TouchableOpacity
-                        key={item}
+                        key={tag.id}
                         activeOpacity={0.75}
-                        onPress={() => toggleTempInterest(item)}
+                        onPress={() => toggleTempInterest(tag.id)}
                         style={[
                           styles.vibeChoiceChip,
                           isSelected && styles.vibeChoiceChipActive,
@@ -773,7 +722,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       shadowOffset={{ x: 2.5, y: 2.5 }}
                       contentStyle={styles.modalBtnContent}
                     >
-                      <Text style={[styles.modalCancelText, { color: '#000' }]}>SAVE VIBES ⚡</Text>
+                      {savingInterests ? (
+                        <ActivityIndicator color="#000" />
+                      ) : (
+                        <Text style={[styles.modalCancelText, { color: '#000' }]}>SAVE VIBES ⚡</Text>
+                      )}
                     </BrutalBox>
                   </TouchableOpacity>
                 </View>
@@ -830,6 +783,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     marginBottom: 20,
+  },
+  heroAvatar: {
+    borderWidth: 3,
+    borderColor: colors.borderBlack,
   },
   avatarContainer: {
     position: 'relative',

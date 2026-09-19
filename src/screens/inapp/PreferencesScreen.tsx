@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,15 +7,21 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { DotGridBackground } from '../../components/DotGridBackground';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
+import { NeoSlider } from '../../components/NeoSlider';
+import { fetchPreferences, savePreferences } from '../../services/profile';
+import { errorMessage } from '../../services/errors';
+import type { Enums } from '../../types/database';
 
 export interface PreferenceFilters {
   selectedGenders: string[];
@@ -33,67 +39,93 @@ interface PreferencesScreenProps {
   onApplyFilters?: (filters: PreferenceFilters) => void;
 }
 
-export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
-  onBack,
-  onApplyFilters,
-}) => {
-  // Gender preference selection (multi-select)
-  const [selectedGenders, setSelectedGenders] = useState<string[]>(['Women']);
-  // Dating intention selection (single or multi)
-  const [selectedIntention, setSelectedIntention] = useState<string>('Long-term');
-  // Age range
-  const [minAge] = useState(23);
-  const [maxAge] = useState(33);
-  // Distance
-  const [maxDistance] = useState(25);
-  // Strict distance boundary
-  const [strictDistance, setStrictDistance] = useState(true);
-  // Vibes list
-  const [vibes, setVibes] = useState<Array<{ id: string; label: string; icon: string; bg: string }>>([
-    { id: '1', label: 'Flat White Enthusiast', icon: '☕', bg: '#FFD5E5' },
-    { id: '2', label: 'Analog Vinyl', icon: '📻', bg: '#FFE600' },
-    { id: '3', label: 'Bouldering', icon: '🧗', bg: '#E2DCFE' },
-  ]);
+type Gender = Enums<'gender_t'>;
+type Intention = Enums<'intention_t'>;
 
-  const toggleGender = (gender: string) => {
-    if (gender === 'Everyone') {
-      setSelectedGenders(['Everyone']);
+const GENDER_CHOICES: Array<{ label: string; value: Gender | 'everyone' }> = [
+  { label: 'Women', value: 'woman' },
+  { label: 'Men', value: 'man' },
+  { label: 'Non-Binary', value: 'non_binary' },
+  { label: 'Everyone', value: 'everyone' },
+];
+const ALL_GENDERS: Gender[] = ['woman', 'man', 'non_binary', 'other'];
+
+const INTENTION_CHOICES: Array<{ key: Intention; label: string; icon: string | null }> = [
+  { key: 'long_term', label: 'Long-term', icon: 'flame' },
+  { key: 'short_term', label: 'Casual / Fun', icon: null },
+  { key: 'friends', label: 'New Friends', icon: null },
+  { key: 'figuring_out', label: 'Open to Options', icon: null },
+];
+
+const AGE_MIN = 18;
+const AGE_MAX = 60; // shown as "60+" and stored as 99
+const DISTANCE_MIN = 1;
+const DISTANCE_MAX = 100;
+
+export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ user, onBack, onApplyFilters }) => {
+  const queryClient = useQueryClient();
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [selectedGenders, setSelectedGenders] = useState<Gender[]>([]);
+  const [selectedIntention, setSelectedIntention] = useState<Intention>('long_term');
+  const [minAge, setMinAge] = useState(23);
+  const [maxAge, setMaxAge] = useState(33);
+  const [maxDistance, setMaxDistance] = useState(25);
+  const [strictDistance, setStrictDistance] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetchPreferences(user.id)
+      .then((prefs) => {
+        if (cancelled) return;
+        setSelectedGenders(prefs.interested_in);
+        setSelectedIntention(prefs.intention);
+        setMinAge(Math.max(AGE_MIN, prefs.min_age));
+        setMaxAge(Math.min(AGE_MAX, prefs.max_age));
+        setMaxDistance(Math.min(DISTANCE_MAX, Math.max(DISTANCE_MIN, prefs.max_distance_km)));
+        setStrictDistance(prefs.strict_distance);
+      })
+      .catch((e) => !cancelled && setLoadError(errorMessage(e)))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const everyoneSelected = ALL_GENDERS.every((g) => selectedGenders.includes(g));
+
+  const toggleGender = (choice: Gender | 'everyone') => {
+    if (choice === 'everyone') {
+      setSelectedGenders(everyoneSelected ? ['woman'] : [...ALL_GENDERS]);
       return;
     }
-    let updated = selectedGenders.filter((g) => g !== 'Everyone');
-    if (updated.includes(gender)) {
-      if (updated.length > 1) {
-        updated = updated.filter((g) => g !== gender);
-      }
+    if (selectedGenders.includes(choice)) {
+      if (selectedGenders.length > 1) setSelectedGenders(selectedGenders.filter((g) => g !== choice));
     } else {
-      updated.push(gender);
-    }
-    setSelectedGenders(updated);
-  };
-
-  const handleRemoveVibe = (id: string) => {
-    setVibes(vibes.filter((v) => v.id !== id));
-  };
-
-  const handleAddVibe = () => {
-    const suggestions = [
-      { label: 'Modular Synths', icon: '🎹', bg: '#FEF08A' },
-      { label: '35mm Film', icon: '📷', bg: '#FED7AA' },
-      { label: 'Omakase Nights', icon: '🍣', bg: '#FECDD3' },
-      { label: 'Bauhaus Design', icon: '📐', bg: '#E0E7FF' },
-    ];
-    const unadded = suggestions.filter((s) => !vibes.some((v) => v.label === s.label));
-    if (unadded.length > 0) {
-      const next = unadded[0];
-      setVibes([...vibes, { id: String(Date.now()), ...next }]);
-    } else {
-      Alert.alert('All Vibes Added', 'You have already added popular curated vibes.');
+      setSelectedGenders([...selectedGenders, choice]);
     }
   };
 
-  const handleApply = () => {
-    if (onApplyFilters) {
-      onApplyFilters({
+  const handleApply = async () => {
+    if (!user) return;
+    if (selectedGenders.length === 0) {
+      Alert.alert('Pick who to meet', 'Choose at least one option under Gender Preference.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await savePreferences(user.id, {
+        interested_in: selectedGenders,
+        intention: selectedIntention,
+        min_age: minAge,
+        max_age: maxAge >= AGE_MAX ? 99 : maxAge,
+        max_distance_km: maxDistance,
+        strict_distance: strictDistance,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['feed'] });
+      onApplyFilters?.({
         selectedGenders,
         selectedIntention,
         minAge,
@@ -101,10 +133,14 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
         maxDistance,
         strictDistance,
       });
+      Alert.alert('⚡ Filters Applied', 'Your Discover feed now uses these preferences.', [
+        { text: 'OK', onPress: onBack },
+      ]);
+    } catch (e) {
+      Alert.alert('Could not save', errorMessage(e));
+    } finally {
+      setSaving(false);
     }
-    Alert.alert('⚡ Filters Applied', 'Your swipe feed has been re-indexed.', [
-      { text: 'OK', onPress: onBack },
-    ]);
   };
 
   return (
@@ -124,7 +160,9 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
           {/* Screen Title Block */}
           <View style={styles.screenHeader}>
             <Text style={styles.screenHeading}>DISCOVERY PREFERENCES</Text>
-            <Text style={styles.screenSubheading}>Configure your discovery radar, age criteria & matching algorithm</Text>
+            <Text style={styles.screenSubheading}>Configure your discovery radar and age criteria</Text>
+            {loading && <ActivityIndicator color={colors.primaryPink} />}
+            {loadError && <Text style={styles.screenSubheading}>Could not load your preferences: {loadError}</Text>}
           </View>
 
           {/* CARD 1: WHO YOU WANT TO MEET (TARGET RADAR) */}
@@ -155,13 +193,13 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
               </View>
 
               <View style={styles.chipsRow}>
-                {['Women', 'Men', 'Non-Binary', 'Everyone'].map((gender) => {
-                  const isSelected = selectedGenders.includes(gender);
+                {GENDER_CHOICES.map(({ label: gender, value }) => {
+                  const isSelected = value === 'everyone' ? everyoneSelected : selectedGenders.includes(value);
                   return (
                     <TouchableOpacity
                       key={gender}
                       activeOpacity={0.75}
-                      onPress={() => toggleGender(gender)}
+                      onPress={() => toggleGender(value)}
                       style={[
                         styles.chipBtn,
                         isSelected && styles.genderChipSelected,
@@ -183,12 +221,7 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
               </View>
 
               <View style={styles.chipsRow}>
-                {[
-                  { key: 'Long-term', label: 'Long-term', icon: 'flame' },
-                  { key: 'Casual / Fun', label: 'Casual / Fun', icon: null },
-                  { key: 'New Friends', label: 'New Friends', icon: null },
-                  { key: 'Open to Options', label: 'Open to Options', icon: null },
-                ].map((item) => {
+                {INTENTION_CHOICES.map((item) => {
                   const isSelected = selectedIntention === item.key;
                   return (
                     <TouchableOpacity
@@ -201,7 +234,7 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
                       ]}
                     >
                       {item.icon && isSelected && (
-                        <Ionicons name={item.icon as any} size={15} color="#FFF" style={{ marginRight: 4 }} />
+                        <Ionicons name={item.icon as keyof typeof Ionicons.glyphMap} size={15} color="#FFF" style={{ marginRight: 4 }} />
                       )}
                       <Text
                         style={[
@@ -238,32 +271,29 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
                 <Text style={styles.sliderTitle}>AGE RANGE</Text>
                 <View style={styles.pinkPill}>
                   <Text style={styles.pinkPillText}>
-                    {minAge} – {maxAge} Yrs Old
+                    {minAge} – {maxAge >= AGE_MAX ? '60+' : maxAge} Yrs Old
                   </Text>
                 </View>
               </View>
 
-              {/* Dual Range Track Visualization */}
-              <View style={styles.sliderTrackContainer}>
-                <View style={styles.trackBackground}>
-                  {/* Pink active range highlight */}
-                  <View style={[styles.trackActiveSegmentPink, { left: '16%', width: '38%' }]} />
-                  {/* Left Thumb */}
-                  <View style={[styles.thumbCircle, { left: '16%' }]}>
-                    <View style={styles.innerDot} />
-                  </View>
-                  {/* Right Thumb */}
-                  <View style={[styles.thumbCircle, { left: '54%' }]}>
-                    <View style={styles.innerDot} />
-                  </View>
-                </View>
-                <View style={styles.scaleRow}>
-                  <Text style={styles.scaleText}>18</Text>
-                  <Text style={styles.scaleText}>25</Text>
-                  <Text style={styles.scaleText}>35</Text>
-                  <Text style={styles.scaleText}>45</Text>
-                  <Text style={styles.scaleText}>55+</Text>
-                </View>
+              <NeoSlider
+                min={AGE_MIN}
+                max={AGE_MAX}
+                values={[minAge, maxAge]}
+                minGap={2}
+                onChange={(v) => {
+                  if (v.length === 2) {
+                    setMinAge(v[0]);
+                    setMaxAge(v[1]);
+                  }
+                }}
+                accessibilityLabel="Age"
+              />
+              <View style={styles.scaleRow}>
+                <Text style={styles.scaleText}>18</Text>
+                <Text style={styles.scaleText}>30</Text>
+                <Text style={styles.scaleText}>45</Text>
+                <Text style={styles.scaleText}>60+</Text>
               </View>
 
               {/* Max Distance Row */}
@@ -275,22 +305,19 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
                 </View>
               </View>
 
-              {/* Distance Track Visualization */}
-              <View style={styles.sliderTrackContainer}>
-                <View style={styles.trackBackground}>
-                  {/* Yellow active segment */}
-                  <View style={[styles.trackActiveSegmentYellow, { width: '48%' }]} />
-                  {/* Distance Thumb */}
-                  <View style={[styles.thumbCircle, { left: '48%' }]}>
-                    <View style={styles.innerDotYellow} />
-                  </View>
-                </View>
-                <View style={styles.scaleRow}>
-                  <Text style={styles.scaleText}>1 km</Text>
-                  <Text style={styles.scaleText}>15 km</Text>
-                  <Text style={styles.scaleText}>50 km</Text>
-                  <Text style={styles.scaleText}>100 km (State)</Text>
-                </View>
+              <NeoSlider
+                min={DISTANCE_MIN}
+                max={DISTANCE_MAX}
+                values={[maxDistance]}
+                fillColor={colors.accentYellow}
+                onChange={(v) => setMaxDistance(v[0])}
+                accessibilityLabel="Maximum distance in kilometres"
+              />
+              <View style={styles.scaleRow}>
+                <Text style={styles.scaleText}>1 km</Text>
+                <Text style={styles.scaleText}>25 km</Text>
+                <Text style={styles.scaleText}>50 km</Text>
+                <Text style={styles.scaleText}>100 km</Text>
               </View>
 
               {/* Strict Distance Boundary Row */}
@@ -326,71 +353,11 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
             </BrutalBox>
           </View>
 
-          {/* CARD 3: MUST-HAVE VIBES */}
-          <BrutalBox
-            backgroundColor="#FFFFFF"
-            borderColor={colors.borderBlack}
-            borderWidth={2.8}
-            borderRadius={20}
-            shadowOffset={{ x: 4, y: 4 }}
-            style={styles.fullWidth}
-            contentStyle={styles.cardContent}
-          >
-            <View style={styles.vibesHeaderRow}>
-              <View>
-                <Text style={styles.vibesTitle}>MUST-HAVE VIBES</Text>
-                <Text style={styles.vibesSub}>MATCHES REQUIRE AT LEAST 2 MUTUAL SPARKS</Text>
-              </View>
-              <View style={styles.symbolBadge}>
-                <Ionicons name="shapes" size={16} color="#000" />
-              </View>
-            </View>
-
-            {/* Vibes Chips */}
-            <View style={styles.vibesChipsWrap}>
-              {vibes.map((vibe) => (
-                <View
-                  key={vibe.id}
-                  style={[styles.vibeChip, { backgroundColor: vibe.bg }]}
-                >
-                  <Text style={styles.vibeIcon}>{vibe.icon}</Text>
-                  <Text style={styles.vibeLabel}>{vibe.label}</Text>
-                  <TouchableOpacity
-                    onPress={() => handleRemoveVibe(vibe.id)}
-                    style={styles.removeVibeBtn}
-                  >
-                    <Ionicons name="close" size={14} color="#000" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              <TouchableOpacity
-                onPress={handleAddVibe}
-                style={styles.addVibeBtn}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.addVibeText}>+ Add Vibe...</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Sparkle callout box */}
-            <View style={styles.sparkleCallout}>
-              <MaterialCommunityIcons
-                name="creation"
-                size={22}
-                color={colors.primaryPink}
-                style={{ marginRight: 10 }}
-              />
-              <Text style={styles.sparkleCalloutText}>
-                Profiles with 3+ overlapping passions receive instant priority highlight in your deck.
-              </Text>
-            </View>
-          </BrutalBox>
-
           {/* 5. APPLY FILTERS CTA */}
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleApply}
+            disabled={saving || loading || loadError !== null}
             style={styles.applyBtnWrapper}
           >
             <BrutalBox
@@ -402,7 +369,7 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
               style={styles.fullWidth}
               contentStyle={styles.applyBtnContent}
             >
-              <Text style={styles.applyBtnText}>APPLY FILTERS ⚡</Text>
+              {saving ? <ActivityIndicator color={colors.textDark} /> : <Text style={styles.applyBtnText}>APPLY FILTERS ⚡</Text>}
             </BrutalBox>
           </TouchableOpacity>
 

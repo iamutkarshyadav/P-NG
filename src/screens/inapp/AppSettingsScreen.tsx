@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,15 +7,26 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import Constants from 'expo-constants';
+import { useQueryClient } from '@tanstack/react-query';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
+import { env } from '../../lib/env';
 import { DotGridBackground } from '../../components/DotGridBackground';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
+import { useSettings } from '../../hooks/useSettings';
+import { SettingsRow } from '../../services/profile';
+import { exportMyData } from '../../services/account';
+import { registerForPush } from '../../services/push';
+import { errorMessage } from '../../services/errors';
 
 interface AppSettingsScreenProps {
   user: UserAccount;
@@ -23,83 +34,90 @@ interface AppSettingsScreenProps {
   onPreviewProfile?: () => void;
 }
 
-export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
-  user,
-  onBack,
-}) => {
-  // Notification States
-  const [notifyMatches, setNotifyMatches] = useState(true);
-  const [notifyMessages, setNotifyMessages] = useState(true);
-  const [notifySuperpings, setNotifySuperpings] = useState(true);
-  const [notifyEvents, setNotifyEvents] = useState(false);
+type BoolSetting = {
+  [K in keyof SettingsRow]: SettingsRow[K] extends boolean ? K : never;
+}[keyof SettingsRow];
 
-  // Presence & Chat Privacy States
-  const [showActiveStatus, setShowActiveStatus] = useState(true);
-  const [readReceipts, setReadReceipts] = useState(true);
-  const [approximateDistance, setApproximateDistance] = useState(false);
+export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ user, onBack }) => {
+  const queryClient = useQueryClient();
+  const { settings, isLoading, error, update } = useSettings(user.id);
 
-  // Experience & Feedback States
-  const [hapticsEnabled, setHapticsEnabled] = useState(true);
-  const [soundEffects, setSoundEffects] = useState(true);
+  const toggle = async (key: BoolSetting) => {
+    if (!settings) return;
+    const next = !settings[key];
+    await update({ [key]: next } as Partial<SettingsRow>);
+    // Turning a notification on is the moment to ask the OS for permission.
+    if (next && key.startsWith('notify_')) {
+      const result = await registerForPush();
+      if (!result.ok && result.reason === 'denied') {
+        Alert.alert('Notifications are off', 'Allow notifications for P!NG in your device settings to receive alerts.');
+      }
+    }
+  };
 
-  // Storage Cache State
-  const [cacheSize, setCacheSize] = useState('148.4 MB');
-
-  const handleClearCache = () => {
-    Alert.alert(
-      'Clear Media Cache',
-      'Free up local temporary media, voice cache, and unpinned profile thumbnails?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear Cache',
-          style: 'destructive',
-          onPress: () => {
-            setCacheSize('0.0 MB');
-            Alert.alert('🧹 Cache Cleared', '148.4 MB of temporary media storage freed.');
-          },
+  const handleClearCache = () =>
+    Alert.alert('Clear image cache', 'Downloaded photos will be fetched again when you need them.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear cache',
+        style: 'destructive',
+        onPress: async () => {
+          await Image.clearDiskCache();
+          await Image.clearMemoryCache();
+          queryClient.removeQueries({ queryKey: ['signed-urls'] });
+          Alert.alert('Cache cleared', 'Cached photos were removed from this device.');
         },
-      ]
+      },
+    ]);
+
+  const handleDownloadData = async () => {
+    try {
+      await exportMyData();
+    } catch (e) {
+      Alert.alert('Could not export your data', errorMessage(e));
+    }
+  };
+
+  const openLink = (title: string, url: string) =>
+    Linking.openURL(url).catch(() => Alert.alert(title, `Could not open ${url}`));
+
+  const version = Constants.expoConfig?.version ?? '1.0.0';
+  const legalLinks: Array<{ label: string; url: string }> = [
+    env.termsUrl ? { label: 'Terms', url: env.termsUrl } : null,
+    env.privacyUrl ? { label: 'Privacy', url: env.privacyUrl } : null,
+    env.supportEmail ? { label: 'Support', url: `mailto:${env.supportEmail}` } : null,
+  ].filter((l): l is { label: string; url: string } => l !== null);
+
+  // Reusable brutalist toggle bound to a real setting.
+  const renderToggle = (key: BoolSetting, activeIcon: keyof typeof Ionicons.glyphMap = 'flash') => {
+    const value = settings?.[key] ?? false;
+    return (
+      <TouchableOpacity
+        activeOpacity={0.8}
+        disabled={!settings}
+        onPress={() => toggle(key)}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: value, disabled: !settings }}
+        style={[styles.brutalToggle, value ? styles.brutalToggleOn : styles.brutalToggleOff, !settings && styles.toggleDisabled]}
+      >
+        <View style={[styles.toggleKnob, value ? styles.toggleKnobOn : styles.toggleKnobOff]}>
+          {value ? <Ionicons name={activeIcon} size={12} color="#000" /> : null}
+        </View>
+      </TouchableOpacity>
     );
   };
 
-  const handleDownloadData = () => {
-    Alert.alert(
-      'Download My P!NG Data',
-      'Your GDPR & CCPA full profile archive will be compiled and sent to your verified email within 24 hours.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Request Archive',
-          onPress: () =>
-            Alert.alert(
-              '📦 Archive Queued',
-              `A secure download link will be dispatched to ${user.email || 'your registered email'}.`
-            ),
-        },
-      ]
-    );
-  };
-
-  const handleShowLegal = (title: string, desc: string) => {
-    Alert.alert(title, desc);
-  };
-
-  // Reusable Brutalist Toggle Component
-  const renderBrutalToggle = (
-    value: boolean,
-    onToggle: () => void,
-    activeIcon: keyof typeof Ionicons.glyphMap = 'flash'
-  ) => (
-    <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={onToggle}
-      style={[styles.brutalToggle, value ? styles.brutalToggleOn : styles.brutalToggleOff]}
-    >
-      <View style={[styles.toggleKnob, value ? styles.toggleKnobOn : styles.toggleKnobOff]}>
-        {value ? <Ionicons name={activeIcon} size={12} color="#000" /> : null}
+  const row = (title: string, sub: string, key: BoolSetting, icon: keyof typeof Ionicons.glyphMap, last = false) => (
+    <>
+      <View style={styles.toggleRow}>
+        <View style={styles.toggleTextCol}>
+          <Text style={styles.toggleTitle}>{title}</Text>
+          <Text style={styles.toggleSub}>{sub}</Text>
+        </View>
+        {renderToggle(key, icon)}
       </View>
-    </TouchableOpacity>
+      {!last && <View style={styles.divider} />}
+    </>
   );
 
   return (
@@ -107,27 +125,31 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
       <StatusBar style="dark" />
       <DotGridBackground />
 
-      {/* Top Back Navigation (No bar, just the back button) */}
       <View style={styles.backNavRow}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={onBack}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <Ionicons name="chevron-back" size={24} color={colors.textDark} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.container}>
-          {/* Screen Title Block */}
           <View style={styles.screenHeader}>
             <Text style={styles.screenHeading}>APP SETTINGS</Text>
-            <Text style={styles.screenSubheading}>Notification alerts, privacy options & system preferences</Text>
+            <Text style={styles.screenSubheading}>Notifications, privacy and device options</Text>
+            {isLoading && <ActivityIndicator color={colors.primaryPink} />}
+            {error && <Text style={styles.screenSubheading}>Could not load your settings: {errorMessage(error)}</Text>}
           </View>
 
-          {/* CARD 1: PUSH & NOTIFICATIONS */}
           <View style={styles.cardWrapper}>
             <View style={styles.floatingBadgePink}>
               <Text style={styles.floatingBadgeText}>ALERTS & NOTIFICATIONS</Text>
             </View>
-
             <BrutalBox
               backgroundColor="#FFFFFF"
               borderColor={colors.borderBlack}
@@ -138,68 +160,19 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
               contentStyle={styles.cardContent}
             >
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardBigTitle}>MATCH & CHAT NOTIFICATIONS</Text>
+                <Text style={styles.cardBigTitle}>PUSH NOTIFICATIONS</Text>
                 <Ionicons name="notifications-outline" size={22} color={colors.primaryPink} />
               </View>
-
-              {/* Item 1: Matches */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextCol}>
-                  <Text style={styles.toggleTitle}>New Matches & P!NGs</Text>
-                  <Text style={styles.toggleSub}>
-                    Instant push alert when someone likes you back
-                  </Text>
-                </View>
-                {renderBrutalToggle(notifyMatches, () => setNotifyMatches(!notifyMatches), 'heart')}
-              </View>
-
-              <View style={styles.divider} />
-
-              {/* Item 2: Messages */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextCol}>
-                  <Text style={styles.toggleTitle}>Chat Messages & Voice Notes</Text>
-                  <Text style={styles.toggleSub}>
-                    Alert when an active match texts or leaves audio
-                  </Text>
-                </View>
-                {renderBrutalToggle(notifyMessages, () => setNotifyMessages(!notifyMessages), 'chatbubble')}
-              </View>
-
-              <View style={styles.divider} />
-
-              {/* Item 3: Superpings */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextCol}>
-                  <Text style={styles.toggleTitle}>Superpings & Priority Likes</Text>
-                  <Text style={styles.toggleSub}>
-                    Highlighted vibration & banner for high-vibe matches
-                  </Text>
-                </View>
-                {renderBrutalToggle(notifySuperpings, () => setNotifySuperpings(!notifySuperpings), 'flash')}
-              </View>
-
-              <View style={styles.divider} />
-
-              {/* Item 4: Events */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextCol}>
-                  <Text style={styles.toggleTitle}>Singles Events & Local Drops</Text>
-                  <Text style={styles.toggleSub}>
-                    Curated offline mixers and dating pop-ups
-                  </Text>
-                </View>
-                {renderBrutalToggle(notifyEvents, () => setNotifyEvents(!notifyEvents), 'sparkles')}
-              </View>
+              {row('New Matches', 'Alert when you and someone else P!NG each other', 'notify_matches', 'heart')}
+              {row('Chat Messages', 'Alert when a match sends you a message', 'notify_messages', 'chatbubble')}
+              {row('Super P!NGs', 'Alert when someone sends you a Super P!NG', 'notify_superpings', 'flash', true)}
             </BrutalBox>
           </View>
 
-          {/* CARD 2: PRESENCE & PRIVACY */}
           <View style={styles.cardWrapper}>
             <View style={styles.floatingBadgeYellow}>
               <Text style={styles.floatingBadgeText}>PRESENCE CONTROL</Text>
             </View>
-
             <BrutalBox
               backgroundColor="#FFFFFF"
               borderColor={colors.borderBlack}
@@ -213,52 +186,16 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
                 <Text style={styles.cardBigTitle}>DISCOVERY & CHAT PRIVACY</Text>
                 <Ionicons name="eye-outline" size={22} color="#D97706" />
               </View>
-
-              {/* Item 1: Active dot */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextCol}>
-                  <Text style={styles.toggleTitle}>Show "Active Today" Status</Text>
-                  <Text style={styles.toggleSub}>
-                    Displays the green activity dot on your profile card
-                  </Text>
-                </View>
-                {renderBrutalToggle(showActiveStatus, () => setShowActiveStatus(!showActiveStatus), 'ellipse')}
-              </View>
-
-              <View style={styles.divider} />
-
-              {/* Item 2: Read Receipts */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextCol}>
-                  <Text style={styles.toggleTitle}>Read Receipts in Chat</Text>
-                  <Text style={styles.toggleSub}>
-                    Let matches see double checkmark when you view messages
-                  </Text>
-                </View>
-                {renderBrutalToggle(readReceipts, () => setReadReceipts(!readReceipts), 'checkmark-done')}
-              </View>
-
-              <View style={styles.divider} />
-
-              {/* Item 3: Approximate Distance */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextCol}>
-                  <Text style={styles.toggleTitle}>Approximate Distance Only</Text>
-                  <Text style={styles.toggleSub}>
-                    Display general borough/city instead of exact kilometers
-                  </Text>
-                </View>
-                {renderBrutalToggle(approximateDistance, () => setApproximateDistance(!approximateDistance), 'navigate')}
-              </View>
+              {row('Show "Active" Status', 'Shows the green activity pill on your card', 'show_active_status', 'ellipse')}
+              {row('Read Receipts', 'Let matches see when you have read their messages', 'read_receipts', 'checkmark-done')}
+              {row('Approximate Distance', 'Show distance in rough 5 km steps instead of exact', 'approximate_distance', 'navigate', true)}
             </BrutalBox>
           </View>
 
-          {/* CARD 3: EXPERIENCE & HAPTICS */}
           <View style={styles.cardWrapper}>
             <View style={styles.floatingBadgeLavender}>
-              <Text style={styles.floatingBadgeText}>TACTILE & AUDIO</Text>
+              <Text style={styles.floatingBadgeText}>FEEL</Text>
             </View>
-
             <BrutalBox
               backgroundColor="#FFFFFF"
               borderColor={colors.borderBlack}
@@ -269,42 +206,17 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
               contentStyle={styles.cardContent}
             >
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardBigTitle}>APP SENSORY FEEDBACK</Text>
-                <Ionicons name="volume-high-outline" size={22} color="#4F46E5" />
+                <Text style={styles.cardBigTitle}>HAPTIC FEEDBACK</Text>
+                <Ionicons name="phone-portrait-outline" size={22} color="#4F46E5" />
               </View>
-
-              {/* Item 1: Haptics */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextCol}>
-                  <Text style={styles.toggleTitle}>Neo-Brutalist Haptic Feedback</Text>
-                  <Text style={styles.toggleSub}>
-                    Tactile kick on right swipes & mutual match popups
-                  </Text>
-                </View>
-                {renderBrutalToggle(hapticsEnabled, () => setHapticsEnabled(!hapticsEnabled), 'phone-portrait')}
-              </View>
-
-              <View style={styles.divider} />
-
-              {/* Item 2: Sound Effects */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextCol}>
-                  <Text style={styles.toggleTitle}>In-App Sound Effects</Text>
-                  <Text style={styles.toggleSub}>
-                    Retro arcade ping sounds on message send and match
-                  </Text>
-                </View>
-                {renderBrutalToggle(soundEffects, () => setSoundEffects(!soundEffects), 'musical-notes')}
-              </View>
+              {row('Haptics', 'A tactile tap when you P!NG someone or match', 'haptics', 'phone-portrait', true)}
             </BrutalBox>
           </View>
 
-          {/* CARD 4: STORAGE & ARCHIVE */}
           <View style={styles.cardWrapper}>
             <View style={styles.floatingBadgePink}>
-              <Text style={styles.floatingBadgeText}>STORAGE & CACHE</Text>
+              <Text style={styles.floatingBadgeText}>STORAGE & DATA</Text>
             </View>
-
             <BrutalBox
               backgroundColor="#FFFFFF"
               borderColor={colors.borderBlack}
@@ -315,44 +227,32 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
               contentStyle={styles.cardContent}
             >
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardBigTitle}>MEDIA STORAGE & ARCHIVE</Text>
+                <Text style={styles.cardBigTitle}>PHOTOS & YOUR DATA</Text>
                 <Ionicons name="server-outline" size={22} color={colors.textDark} />
               </View>
 
-              {/* Row 1: Clear Cache */}
               <View style={styles.storageRow}>
                 <View style={styles.storageIconBox}>
                   <Feather name="trash-2" size={18} color="#DC2626" />
                 </View>
                 <View style={styles.storageTextCol}>
-                  <Text style={styles.storageTitle}>Temporary Photo & Audio Cache</Text>
-                  <Text style={styles.storageMeta}>Currently using {cacheSize}</Text>
+                  <Text style={styles.storageTitle}>Image cache</Text>
+                  <Text style={styles.storageMeta}>Photos saved on this device for speed</Text>
                 </View>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={handleClearCache}
-                  style={styles.clearCacheBtn}
-                >
+                <TouchableOpacity activeOpacity={0.8} onPress={handleClearCache} style={styles.clearCacheBtn} accessibilityRole="button">
                   <Text style={styles.clearCacheBtnText}>CLEAR</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.divider} />
 
-              {/* Row 2: GDPR Download Archive */}
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={handleDownloadData}
-                style={styles.storageRow}
-              >
+              <TouchableOpacity activeOpacity={0.8} onPress={handleDownloadData} style={styles.storageRow} accessibilityRole="button">
                 <View style={[styles.storageIconBox, { backgroundColor: '#E0E7FF' }]}>
                   <Feather name="download" size={18} color="#4338CA" />
                 </View>
                 <View style={styles.storageTextCol}>
                   <Text style={styles.storageTitle}>Download My P!NG Data</Text>
-                  <Text style={styles.storageMeta}>
-                    GDPR / CCPA JSON archive of photos & chats
-                  </Text>
+                  <Text style={styles.storageMeta}>JSON copy of your profile, swipes and chats</Text>
                 </View>
                 <View style={styles.circleArrowBtn}>
                   <Feather name="arrow-right" size={18} color={colors.textDark} />
@@ -361,12 +261,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
             </BrutalBox>
           </View>
 
-          {/* CARD 5: ABOUT & LEGAL */}
           <View style={styles.cardWrapper}>
             <View style={styles.floatingBadgeGrey}>
-              <Text style={styles.floatingBadgeText}>SYSTEM SPEC</Text>
+              <Text style={styles.floatingBadgeText}>ABOUT</Text>
             </View>
-
             <BrutalBox
               backgroundColor="#FFFFFF"
               borderColor={colors.borderBlack}
@@ -377,62 +275,26 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
               contentStyle={styles.cardContent}
             >
               <View style={styles.legalHeaderRow}>
-                <Text style={styles.appVersionTitle}>P!NG FOR MOBILE & WEB</Text>
+                <Text style={styles.appVersionTitle}>P!NG</Text>
                 <View style={styles.versionPill}>
-                  <Text style={styles.versionPillText}>V2.4.0 (BUILD 57)</Text>
+                  <Text style={styles.versionPillText}>V{version}</Text>
                 </View>
               </View>
-
               <Text style={styles.legalExplainer}>
-                Crafted with pure neo-brutalist aesthetics. Designed for genuine romantic spark without paywalls, fake bots, or blurred previews.
+                Genuine connections, no paywalls on who liked you and no fake profiles.
               </Text>
-
-              <View style={styles.legalLinksRow}>
-                <TouchableOpacity
-                  onPress={() =>
-                    handleShowLegal('Terms of Service', 'P!NG Terms of Service (v2.4). All users must treat connections with respect.')
-                  }
-                  style={styles.legalLink}
-                >
-                  <Text style={styles.legalLinkText}>Terms</Text>
-                </TouchableOpacity>
-                <Text style={styles.legalDot}>•</Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    handleShowLegal('Privacy Policy', 'Zero third-party trackers. End-to-end encryption for all 1-on-1 chats.')
-                  }
-                  style={styles.legalLink}
-                >
-                  <Text style={styles.legalLinkText}>Privacy</Text>
-                </TouchableOpacity>
-                <Text style={styles.legalDot}>•</Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    handleShowLegal('Safety Guidelines', 'Our zero-tolerance harassment manifesto and real-world date checklist.')
-                  }
-                  style={styles.legalLink}
-                >
-                  <Text style={styles.legalLinkText}>Safety Standards</Text>
-                </TouchableOpacity>
-              </View>
-            </BrutalBox>
-          </View>
-
-          {/* Bottom Security Banner */}
-          <View style={styles.bottomBannerWrap}>
-            <BrutalBox
-              backgroundColor="#EDE9FE"
-              borderColor={colors.borderBlack}
-              borderWidth={2}
-              borderRadius={12}
-              shadowOffset={{ x: 2, y: 2 }}
-              style={styles.fullWidth}
-              contentStyle={styles.bottomBannerContent}
-            >
-              <Ionicons name="shield-checkmark" size={16} color="#6D28D9" />
-              <Text style={styles.bottomBannerText}>
-                100% PRIVATE • ZERO 3RD PARTY AD TRACKERS
-              </Text>
+              {legalLinks.length > 0 && (
+                <View style={styles.legalLinksRow}>
+                  {legalLinks.map((link, i) => (
+                    <React.Fragment key={link.label}>
+                      {i > 0 && <Text style={styles.legalDot}>•</Text>}
+                      <TouchableOpacity onPress={() => openLink(link.label, link.url)} style={styles.legalLink} accessibilityRole="link">
+                        <Text style={styles.legalLinkText}>{link.label}</Text>
+                      </TouchableOpacity>
+                    </React.Fragment>
+                  ))}
+                </View>
+              )}
             </BrutalBox>
           </View>
         </View>
@@ -442,6 +304,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  toggleDisabled: {
+    opacity: 0.5,
+  },
   screenWrapper: {
     flex: 1,
     backgroundColor: colors.bgCream,

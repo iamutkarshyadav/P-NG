@@ -3,13 +3,13 @@ import {
   StyleSheet,
   Text,
   View,
-  SafeAreaView,
   ScrollView,
   TextInput,
   Alert,
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { colors } from '../theme/colors';

@@ -8,11 +8,11 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   Alert,
   Modal,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -131,7 +131,20 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
         if (incoming.senderId !== user.id) markConversationRead();
         scrollToEnd();
       },
-      (updated) => setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
+      (updated) => setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m))),
+      // Anything sent while the channel was connecting or reconnecting is fetched here.
+      () => {
+        fetchMessages(matchId)
+          .then((latest) =>
+            setMessages((prev) => {
+              const known = new Set(prev.map((m) => m.id));
+              const missing = latest.filter((m) => !known.has(m.id));
+              if (missing.length === 0) return prev;
+              return [...prev, ...missing].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+            })
+          )
+          .catch(() => undefined);
+      }
     );
   }, [matchId, user.id, markConversationRead, scrollToEnd]);
 

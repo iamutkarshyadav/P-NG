@@ -148,3 +148,18 @@ end $$;
 
 revoke execute on function public.dev_move_seeds_near_me() from public, anon;
 grant execute on function public.dev_move_seeds_near_me() to authenticated;
+
+-- Dev helper: lets a tester approve their own pending selfie so the 100% REAL badge can be seen.
+create or replace function public.dev_approve_my_verification() returns void
+language plpgsql security definer set search_path = '' as $$
+declare uid uuid := (select auth.uid());
+begin
+  if not exists (select 1 from public.app_config where key = 'dev_tools_enabled' and value = 'true'::jsonb) then
+    raise exception 'Dev tools are disabled.' using errcode = '42501';
+  end if;
+  update public.verifications set status = 'approved', reviewed_at = now()
+   where user_id = uid and status = 'pending';
+end $$;
+
+revoke execute on function public.dev_approve_my_verification() from public, anon;
+grant execute on function public.dev_approve_my_verification() to authenticated;

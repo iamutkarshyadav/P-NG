@@ -31,6 +31,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchFeed, fetchSuperpingsLeft, swipe, undoLastSwipe, SwipeAction } from '../../services/discover';
 import { errorMessage } from '../../services/errors';
 import { useSignedUrls } from '../../hooks/useSignedUrls';
+import { useSettings } from '../../hooks/useSettings';
+import { haptic } from '../../lib/haptics';
 import { paletteFor } from '../../lib/palette';
 import { activeLabel, distanceLabel } from '../../lib/format';
 import type { ChatTarget } from './MatchesScreen';
@@ -161,8 +163,10 @@ function PriyaIllustration({ jacketColor, bg1, bg2 }: { jacketColor: string; bg1
   );
 }
 
-export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ onOpenChat }) => {
+export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat }) => {
   const queryClient = useQueryClient();
+  const { settings } = useSettings(user.id);
+  const hapticsOn = settings?.haptics ?? true;
   const feed = useQuery({ queryKey: ['feed'], queryFn: () => fetchFeed(20) });
   const superpings = useQuery({ queryKey: ['superpings-left'], queryFn: fetchSuperpingsLeft });
 
@@ -203,6 +207,7 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ onOpenChat }) =>
     setBusy(true);
     try {
       const outcome = await swipe(current.id, action);
+      haptic(hapticsOn, outcome.matched ? 'success' : 'tap');
       setHandled((h) => [...h, current.id]);
       setPinned(null);
       setActivePhotoIndex(0);
