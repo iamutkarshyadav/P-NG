@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Dimensions,
   Platform,
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -199,7 +198,7 @@ function PriyaIllustration({ jacketColor, bg1, bg2 }: { jacketColor: string; bg1
   );
 }
 
-export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user }) => {
+export const DiscoverScreen: React.FC<DiscoverScreenProps> = () => {
   const [profileIndex, setProfileIndex] = useState(0);
   const [pingsLeft, setPingsLeft] = useState(18);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);

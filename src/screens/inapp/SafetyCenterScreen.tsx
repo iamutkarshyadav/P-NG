@@ -24,9 +24,7 @@ interface SafetyCenterScreenProps {
 }
 
 export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({
-  user,
   onBack,
-  onPreviewProfile,
 }) => {
   const [stealthActive, setStealthActive] = useState(true);
 

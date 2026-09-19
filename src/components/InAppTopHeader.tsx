@@ -18,10 +18,8 @@ interface InAppTopHeaderProps {
 }
 
 export const InAppTopHeader: React.FC<InAppTopHeaderProps> = ({
-  user,
   activeTab = 'discover',
   onPressFilter,
-  onPressAvatar,
   onPressSettings,
 }) => {
   return (

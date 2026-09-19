@@ -9,12 +9,11 @@ import {
   Modal,
   Platform,
 } from 'react-native';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import Svg, {
   Circle,
   Path,
   G,
-  Rect,
 } from 'react-native-svg';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';

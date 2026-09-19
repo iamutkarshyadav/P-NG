@@ -9,7 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { LAYOUT } from '../theme/responsive';
@@ -40,9 +40,9 @@ export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenPr
 }) => {
   const [selectedInterested, setSelectedInterested] = useState<string[]>(['WOMAN']);
   const [selectedLookingFor, setSelectedLookingFor] = useState<string>('★ LONG-TERM');
-  const [minAge, setMinAge] = useState<number>(24);
-  const [maxAge, setMaxAge] = useState<number>(34);
-  const [distanceKm, setDistanceKm] = useState<number>(25);
+  const [minAge] = useState<number>(24);
+  const [maxAge] = useState<number>(34);
+  const [distanceKm] = useState<number>(25);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   const toggleInterested = (item: string) => {

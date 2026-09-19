@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { LAYOUT } from '../theme/responsive';

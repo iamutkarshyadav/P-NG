@@ -5,7 +5,6 @@ import {
   View,
   SafeAreaView,
   ScrollView,
-  TouchableOpacity,
   Alert,
   Platform,
 } from 'react-native';
@@ -93,9 +92,6 @@ export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
   const handleNext = async () => {
     setIsSaving(true);
     try {
-      const selectedNames = ALL_VIBE_TAGS.filter((t) => selectedTagIds.includes(t.id)).map(
-        (t) => t.name
-      );
       const updated = await authDb.updateUserProfile(user.id, {
         // sync selected tags
       });

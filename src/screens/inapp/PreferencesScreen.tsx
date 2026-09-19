@@ -5,7 +5,6 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  Switch,
   Alert,
   Platform,
 } from 'react-native';
@@ -18,17 +17,24 @@ import { DotGridBackground } from '../../components/DotGridBackground';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../services/authDb';
 
+export interface PreferenceFilters {
+  selectedGenders: string[];
+  selectedIntention: string;
+  minAge: number;
+  maxAge: number;
+  maxDistance: number;
+  strictDistance: boolean;
+}
+
 interface PreferencesScreenProps {
-  user: UserAccount;
+  user?: UserAccount;
   onBack: () => void;
   onPreviewProfile?: () => void;
-  onApplyFilters?: (filters: any) => void;
+  onApplyFilters?: (filters: PreferenceFilters) => void;
 }
 
 export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
-  user,
   onBack,
-  onPreviewProfile,
   onApplyFilters,
 }) => {
   // Gender preference selection (multi-select)
@@ -36,10 +42,10 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
   // Dating intention selection (single or multi)
   const [selectedIntention, setSelectedIntention] = useState<string>('Long-term');
   // Age range
-  const [minAge, setMinAge] = useState(23);
-  const [maxAge, setMaxAge] = useState(33);
+  const [minAge] = useState(23);
+  const [maxAge] = useState(33);
   // Distance
-  const [maxDistance, setMaxDistance] = useState(25);
+  const [maxDistance] = useState(25);
   // Strict distance boundary
   const [strictDistance, setStrictDistance] = useState(true);
   // Vibes list

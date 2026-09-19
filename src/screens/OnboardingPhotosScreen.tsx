@@ -17,7 +17,6 @@ import Svg, {
   Path,
   G,
   Defs,
-  Pattern,
   LinearGradient,
   Stop,
 } from 'react-native-svg';

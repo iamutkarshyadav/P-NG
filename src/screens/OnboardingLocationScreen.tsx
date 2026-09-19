@@ -5,7 +5,6 @@ import {
   View,
   SafeAreaView,
   ScrollView,
-  TouchableOpacity,
   Alert,
   Platform,
 } from 'react-native';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,7 +14,6 @@ import Svg, {
   Circle,
   Path,
   G,
-  Polygon,
 } from 'react-native-svg';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -198,7 +197,6 @@ function AvatarTaylor() {
 }
 
 export const MatchesScreen: React.FC<MatchesScreenProps> = ({
-  user,
   onOpenChat,
 }) => {
   const handleChatPress = (name: string) => {

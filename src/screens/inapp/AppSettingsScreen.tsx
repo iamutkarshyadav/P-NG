@@ -26,7 +26,6 @@ interface AppSettingsScreenProps {
 export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({
   user,
   onBack,
-  onPreviewProfile,
 }) => {
   // Notification States
   const [notifyMatches, setNotifyMatches] = useState(true);

@@ -13,7 +13,6 @@ interface OnboardingTopHeaderProps {
 }
 
 export const OnboardingTopHeader: React.FC<OnboardingTopHeaderProps> = ({
-  user,
   onBack,
   onLogout,
 }) => {

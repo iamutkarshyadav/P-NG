@@ -27,7 +27,6 @@ interface AccountSecurityScreenProps {
 export const AccountSecurityScreen: React.FC<AccountSecurityScreenProps> = ({
   user,
   onBack,
-  onPreviewProfile,
 }) => {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
   const [biometricLockEnabled, setBiometricLockEnabled] = useState(true);

@@ -14,7 +14,6 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, {
-  Rect,
   Circle,
   Path,
   G,
@@ -88,7 +87,6 @@ function PriyaChatAvatar() {
 
 export const ChatScreen: React.FC<ChatScreenProps> = ({
   partnerName = 'Priya',
-  user,
   onBack,
 }) => {
   const [showWarning, setShowWarning] = useState(true);

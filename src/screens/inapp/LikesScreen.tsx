@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Dimensions,
   Platform,
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -109,7 +108,7 @@ function ProfileIllustration({ hair, bg }: { hair: string; bg: string }) {
   );
 }
 
-export const LikesScreen: React.FC<LikesScreenProps> = ({ user }) => {
+export const LikesScreen: React.FC<LikesScreenProps> = () => {
   const [profiles, setProfiles] = useState<LikeProfile[]>(LIKE_PROFILES);
 
   const handleAction = (id: string, name: string, type: 'match' | 'pass') => {
