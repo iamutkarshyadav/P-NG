@@ -360,6 +360,10 @@ export type Database = {
     Views: { [_ in never]: never };
     Functions: {
       age_years: { Args: { b: string }; Returns: number };
+      blocked_users: {
+        Args: never;
+        Returns: { blocked_at: string; display_name: string; user_id: string }[];
+      };
       can_message: { Args: { m: string }; Returns: boolean };
       can_view_photos: { Args: { p_owner: string }; Returns: boolean };
       complete_onboarding: { Args: never; Returns: undefined };
@@ -419,6 +423,8 @@ export type Database = {
       };
       register_push_token: { Args: { p_platform: string; p_token: string }; Returns: undefined };
       set_location: { Args: { p_city?: string; p_lat: number; p_lng: number }; Returns: undefined };
+      superpings_left: { Args: never; Returns: number };
+      undo_last_swipe: { Args: never; Returns: string };
       unmatch: { Args: { p_match: string }; Returns: undefined };
       zodiac_sign: { Args: { b: string }; Returns: string };
     };

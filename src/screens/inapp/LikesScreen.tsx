@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, {
@@ -20,63 +21,19 @@ import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
+import { Image } from 'expo-image';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchLikes, swipe, LikeProfile } from '../../services/discover';
+import { errorMessage } from '../../services/errors';
+import { useSignedUrls } from '../../hooks/useSignedUrls';
+import { paletteFor } from '../../lib/palette';
+import { distanceLabel } from '../../lib/format';
+import type { ChatTarget } from './MatchesScreen';
 
 interface LikesScreenProps {
   user: UserAccount;
+  onOpenChat: (target: ChatTarget) => void;
 }
-
-interface LikeProfile {
-  id: string;
-  name: string;
-  age: number;
-  distance: string;
-  commentType?: 'photo' | 'bio';
-  commentText?: string;
-  badgeExtra?: string;
-  hairColor: string;
-  bgColor: string;
-}
-
-const LIKE_PROFILES: LikeProfile[] = [
-  {
-    id: 'l1',
-    name: 'Maya',
-    age: 25,
-    distance: '3 KM AWAY',
-    commentType: 'photo',
-    commentText: 'Your synth setup is unreal 🔥',
-    hairColor: '#818CF8',
-    bgColor: '#E0E7FF',
-  },
-  {
-    id: 'l2',
-    name: 'Jordan',
-    age: 28,
-    distance: '5 KM AWAY',
-    commentType: 'bio',
-    commentText: 'LIKED YOUR BIO',
-    hairColor: '#F59E0B',
-    bgColor: '#FEF3C7',
-  },
-  {
-    id: 'l3',
-    name: 'Elena',
-    age: 24,
-    distance: '1.2 KM AWAY',
-    badgeExtra: 'JUST NOW',
-    hairColor: '#06B6D4',
-    bgColor: '#CFFAFE',
-  },
-  {
-    id: 'l4',
-    name: 'Sam',
-    age: 26,
-    distance: '8 KM AWAY',
-    badgeExtra: 'HIGH VIBE 98%',
-    hairColor: '#FB923C',
-    bgColor: '#FFEDD5',
-  },
-];
 
 function ProfileIllustration({ hair, bg }: { hair: string; bg: string }) {
   return (
@@ -108,30 +65,64 @@ function ProfileIllustration({ hair, bg }: { hair: string; bg: string }) {
   );
 }
 
-export const LikesScreen: React.FC<LikesScreenProps> = () => {
-  const [profiles, setProfiles] = useState<LikeProfile[]>(LIKE_PROFILES);
+export const LikesScreen: React.FC<LikesScreenProps> = ({ onOpenChat }) => {
+  const queryClient = useQueryClient();
+  const likesQuery = useQuery({ queryKey: ['likes'], queryFn: fetchLikes });
+  const likes = useMemo(() => likesQuery.data ?? [], [likesQuery.data]);
+  const urls = useSignedUrls(likes.map((l) => l.photoPaths[0]).filter((p): p is string => Boolean(p)));
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const handleAction = (id: string, name: string, type: 'match' | 'pass') => {
-    setProfiles((prev) => prev.filter((p) => p.id !== id));
-    if (type === 'match') {
-      Alert.alert('🎉 IT’S A MATCH!', `You connected with ${name}! Check your Matches tab.`);
+  const handleAction = async (item: LikeProfile, action: 'like' | 'pass') => {
+    if (busyId) return;
+    setBusyId(item.id);
+    try {
+      const outcome = await swipe(item.id, action);
+      await queryClient.invalidateQueries({ queryKey: ['likes'] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      if (outcome.matched && outcome.matchId) {
+        queryClient.invalidateQueries({ queryKey: ['matches'] });
+        const matchId = outcome.matchId;
+        Alert.alert('🎉 IT’S A MATCH!', `You and ${item.name} P!NGed each other.`, [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Say hi', onPress: () => onOpenChat({ matchId, partnerId: item.id, partnerName: item.name }) },
+        ]);
+      }
+    } catch (e) {
+      Alert.alert('Could not send', errorMessage(e));
+    } finally {
+      setBusyId(null);
     }
   };
 
+  if (likesQuery.isLoading) {
+    return (
+      <View style={styles.stateWrap}>
+        <ActivityIndicator size="large" color={colors.primaryPink} />
+      </View>
+    );
+  }
+
+  if (likesQuery.isError) {
+    return (
+      <View style={styles.stateWrap}>
+        <Text style={styles.stateTitle}>Can&apos;t load your likes</Text>
+        <Text style={styles.stateBody}>{errorMessage(likesQuery.error)}</Text>
+        <BrutalBox backgroundColor={colors.accentYellow} borderRadius={16} onPress={() => likesQuery.refetch()} contentStyle={styles.stateButton}>
+          <Text style={styles.stateButtonText}>TRY AGAIN</Text>
+        </BrutalBox>
+      </View>
+    );
+  }
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       <View style={styles.container}>
-        {/* 1. Header Row */}
         <View style={styles.headerRow}>
           <View style={styles.titleRow}>
             <Text style={styles.headerTitle}>LIKES YOU</Text>
-            <View style={styles.redDot} />
+            {likes.length > 0 && <View style={styles.redDot} />}
           </View>
 
-          {/* Badge: 14 PEOPLE P!NGED YOU */}
           <BrutalBox
             backgroundColor={colors.lavender}
             borderColor={colors.borderBlack}
@@ -141,11 +132,12 @@ export const LikesScreen: React.FC<LikesScreenProps> = () => {
             contentStyle={styles.badgeContent}
           >
             <MaterialCommunityIcons name="lightning-bolt" size={13} color={colors.textDark} />
-            <Text style={styles.badgeText}>14 PEOPLE P!NGED YOU</Text>
+            <Text style={styles.badgeText}>
+              {likes.length} {likes.length === 1 ? 'PERSON' : 'PEOPLE'} P!NGED YOU
+            </Text>
           </BrutalBox>
         </View>
 
-        {/* 2. Value Banner: ALWAYS FREE. NEVER BLURRED. */}
         <BrutalBox
           backgroundColor={colors.accentYellow}
           borderColor={colors.borderBlack}
@@ -160,101 +152,109 @@ export const LikesScreen: React.FC<LikesScreenProps> = () => {
           </View>
           <View style={styles.bannerTextCol}>
             <Text style={styles.bannerTitle}>ALWAYS FREE. NEVER BLURRED.</Text>
-            <Text style={styles.bannerSubtitle}>
-              NO PAYWALLS. NO BLURRY BAIT. JUST PURE CONNECTION.
-            </Text>
+            <Text style={styles.bannerSubtitle}>NO PAYWALLS. NO BLURRY BAIT. JUST PURE CONNECTION.</Text>
           </View>
         </BrutalBox>
 
-        {/* 3. 2x2 Grid of Profile Cards matching ref/inApp2.png */}
+        {likes.length === 0 && (
+          <View style={styles.emptyBlock}>
+            <MaterialCommunityIcons name="heart-outline" size={40} color={colors.primaryPink} />
+            <Text style={styles.stateTitle}>NO LIKES YET</Text>
+            <Text style={styles.stateBody}>
+              When someone P!NGs you, they show up here for free. Meanwhile, keep exploring Discover.
+            </Text>
+          </View>
+        )}
+
         <View style={styles.grid}>
-          {profiles.map((item) => (
-            <View key={item.id} style={styles.gridCardWrapper}>
-              <BrutalBox
-                backgroundColor={colors.cardWhite}
-                borderColor={colors.borderBlack}
-                borderWidth={2.4}
-                borderRadius={18}
-                shadowOffset={{ x: 3.5, y: 3.5 }}
-                overflow="hidden"
-                style={styles.cardBox}
-                contentStyle={styles.cardContent}
-              >
-                {/* Photo Area */}
-                <View style={styles.cardPhotoWrapper}>
-                  <ProfileIllustration hair={item.hairColor} bg={item.bgColor} />
+          {likes.map((item) => {
+            const palette = paletteFor(item.id);
+            const photo = item.photoPaths[0] ? urls[item.photoPaths[0]] : undefined;
+            const distance = distanceLabel(item.distanceKm);
+            const justNow = Date.now() - new Date(item.likedAt).getTime() < 60 * 60 * 1000;
+            const extra = item.isSuperping ? 'SUPER P!NG' : justNow ? 'JUST NOW' : null;
+            return (
+              <View key={item.id} style={styles.gridCardWrapper}>
+                <BrutalBox
+                  backgroundColor={colors.cardWhite}
+                  borderColor={colors.borderBlack}
+                  borderWidth={2.4}
+                  borderRadius={18}
+                  shadowOffset={{ x: 3.5, y: 3.5 }}
+                  overflow="hidden"
+                  style={styles.cardBox}
+                  contentStyle={styles.cardContent}
+                >
+                  <View style={styles.cardPhotoWrapper}>
+                    {photo ? (
+                      <Image
+                        source={{ uri: photo }}
+                        style={StyleSheet.absoluteFill}
+                        contentFit="cover"
+                        transition={150}
+                        accessibilityLabel={`Photo of ${item.name}`}
+                      />
+                    ) : (
+                      <ProfileIllustration hair={palette.hair} bg={palette.flat} />
+                    )}
 
-                  {/* 100% REAL Badge */}
-                  <View style={styles.realBadge}>
-                    <Ionicons name="checkmark-done" size={11} color={colors.textDark} />
-                    <Text style={styles.realBadgeText}>100% REAL</Text>
-                  </View>
-
-                  {/* Comment Callout Pill */}
-                  {item.commentType === 'photo' && (
-                    <View style={styles.commentBox}>
-                      <View style={styles.commentTag}>
-                        <Text style={styles.commentTagText}>P!NGED YOUR PHOTO</Text>
+                    {item.isVerified && (
+                      <View style={styles.realBadge}>
+                        <Ionicons name="checkmark-done" size={11} color={colors.textDark} />
+                        <Text style={styles.realBadgeText}>100% REAL</Text>
                       </View>
-                      <Text style={styles.commentText} numberOfLines={2}>
-                        "{item.commentText}"
-                      </Text>
-                    </View>
-                  )}
+                    )}
 
-                  {item.commentType === 'bio' && (
-                    <View style={styles.bioCommentBox}>
-                      <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.textDark} />
-                      <Text style={styles.bioCommentText}>{item.commentText}</Text>
-                    </View>
-                  )}
-
-                  {/* Extra Badge (JUST NOW / HIGH VIBE) */}
-                  {item.badgeExtra && (
-                    <View
-                      style={[
-                        styles.extraBadge,
-                        item.badgeExtra === 'JUST NOW'
-                          ? { backgroundColor: colors.accentYellow }
-                          : { backgroundColor: colors.lavender },
-                      ]}
-                    >
-                      <Text style={styles.extraBadgeText}>{item.badgeExtra}</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Info Area */}
-                <View style={styles.cardBottom}>
-                  <Text style={styles.cardName}>
-                    {item.name}, {item.age}
-                  </Text>
-                  <View style={styles.distanceBadge}>
-                    <Text style={styles.distanceText}>{item.distance}</Text>
+                    {extra && (
+                      <View
+                        style={[
+                          styles.extraBadge,
+                          { backgroundColor: item.isSuperping ? colors.lavender : colors.accentYellow },
+                        ]}
+                      >
+                        <Text style={styles.extraBadgeText}>{extra}</Text>
+                      </View>
+                    )}
                   </View>
+
+                  <View style={styles.cardBottom}>
+                    <Text style={styles.cardName}>
+                      {item.name}, {item.age}
+                    </Text>
+                    {distance && (
+                      <View style={styles.distanceBadge}>
+                        <Text style={styles.distanceText}>{distance}</Text>
+                      </View>
+                    )}
+                  </View>
+                </BrutalBox>
+
+                <View style={styles.overlappingActions}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    disabled={busyId !== null}
+                    onPress={() => handleAction(item, 'pass')}
+                    style={styles.actionBtnPass}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Pass on ${item.name}`}
+                  >
+                    <Feather name="x" size={18} color={colors.textDark} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    disabled={busyId !== null}
+                    onPress={() => handleAction(item, 'like')}
+                    style={styles.actionBtnHeart}
+                    accessibilityRole="button"
+                    accessibilityLabel={`P!NG ${item.name} back`}
+                  >
+                    <Ionicons name="heart" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
                 </View>
-              </BrutalBox>
-
-              {/* Centered Overlapping Circular Action Buttons matching ref/inApp2.png */}
-              <View style={styles.overlappingActions}>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => handleAction(item.id, item.name, 'pass')}
-                  style={styles.actionBtnPass}
-                >
-                  <Feather name="x" size={18} color={colors.textDark} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => handleAction(item.id, item.name, 'match')}
-                  style={styles.actionBtnHeart}
-                >
-                  <Ionicons name="heart" size={18} color="#FFFFFF" />
-                </TouchableOpacity>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </View>
     </ScrollView>
@@ -262,6 +262,44 @@ export const LikesScreen: React.FC<LikesScreenProps> = () => {
 };
 
 const styles = StyleSheet.create({
+  stateWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 28,
+    gap: 14,
+  },
+  emptyBlock: {
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 32,
+    paddingHorizontal: 12,
+  },
+  stateTitle: {
+    fontSize: 20,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+    textAlign: 'center',
+    letterSpacing: 0.4,
+  },
+  stateBody: {
+    fontSize: 14,
+    fontFamily: typography.bodyMedium,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  stateButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 26,
+    alignItems: 'center',
+  },
+  stateButtonText: {
+    fontSize: 15,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+    letterSpacing: 0.5,
+  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 16,

@@ -17,8 +17,8 @@ interface InAppBottomNavProps {
 export const InAppBottomNav: React.FC<InAppBottomNavProps> = ({
   activeTab,
   onSelectTab,
-  likesCount = 9,
-  hasUnreadMatches = true,
+  likesCount = 0,
+  hasUnreadMatches = false,
 }) => {
   return (
     <View style={styles.navBarWrapper}>
@@ -73,9 +73,11 @@ export const InAppBottomNav: React.FC<InAppBottomNavProps> = ({
               />
             </View>
             {/* Notification Badge: "9" */}
-            <View style={styles.likesBadge}>
-              <Text style={styles.likesBadgeText}>{likesCount}</Text>
-            </View>
+            {likesCount > 0 && (
+              <View style={styles.likesBadge}>
+                <Text style={styles.likesBadgeText}>{likesCount > 99 ? '99+' : likesCount}</Text>
+              </View>
+            )}
           </View>
           <Text
             style={[

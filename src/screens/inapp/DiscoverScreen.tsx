@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  ActivityIndicator,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, {
@@ -23,59 +26,19 @@ import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
+import { Image } from 'expo-image';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchFeed, fetchSuperpingsLeft, swipe, undoLastSwipe, SwipeAction } from '../../services/discover';
+import { errorMessage } from '../../services/errors';
+import { useSignedUrls } from '../../hooks/useSignedUrls';
+import { paletteFor } from '../../lib/palette';
+import { activeLabel, distanceLabel } from '../../lib/format';
+import type { ChatTarget } from './MatchesScreen';
 
 interface DiscoverScreenProps {
   user: UserAccount;
+  onOpenChat: (target: ChatTarget) => void;
 }
-
-interface DiscoverProfile {
-  id: string;
-  name: string;
-  age: number;
-  distance: string;
-  activeStatus: string;
-  replyRate: string;
-  tags: string[];
-  bioPrompt?: string;
-  jacketColor: string;
-  bgGradient: [string, string];
-}
-
-const PROFILES: DiscoverProfile[] = [
-  {
-    id: 'p1',
-    name: 'PRIYA',
-    age: 27,
-    distance: 'UNDER 5 KM',
-    activeStatus: 'ACTIVE TODAY',
-    replyRate: 'USUALLY REPLIES',
-    tags: ['Analog Vinyl', '35mm Film', 'Moog Synths'],
-    jacketColor: '#FFE600',
-    bgGradient: ['#E51760', '#BE185D'],
-  },
-  {
-    id: 'p2',
-    name: 'SORA',
-    age: 24,
-    distance: '2 KM AWAY',
-    activeStatus: 'ACTIVE NOW',
-    replyRate: 'REPLIES INSTANTLY',
-    tags: ['Bouldering', 'Indie Gigs', 'Matcha'],
-    jacketColor: '#38BDF8',
-    bgGradient: ['#4F46E5', '#312E81'],
-  },
-  {
-    id: 'p3',
-    name: 'ELENA',
-    age: 25,
-    distance: '1.2 KM AWAY',
-    activeStatus: 'ACTIVE TODAY',
-    replyRate: 'USUALLY REPLIES',
-    tags: ['Modernist Design', 'Coffee', 'Surfing'],
-    jacketColor: '#F43F5E',
-    bgGradient: ['#F59E0B', '#B45309'],
-  },
-];
 
 // Vector character for Priya (Yellow leather jacket, sunglasses, choker, neon backdrop)
 function PriyaIllustration({ jacketColor, bg1, bg2 }: { jacketColor: string; bg1: string; bg2: string }) {
@@ -198,48 +161,141 @@ function PriyaIllustration({ jacketColor, bg1, bg2 }: { jacketColor: string; bg1
   );
 }
 
-export const DiscoverScreen: React.FC<DiscoverScreenProps> = () => {
-  const [profileIndex, setProfileIndex] = useState(0);
-  const [pingsLeft, setPingsLeft] = useState(18);
+export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ onOpenChat }) => {
+  const queryClient = useQueryClient();
+  const feed = useQuery({ queryKey: ['feed'], queryFn: () => fetchFeed(20) });
+  const superpings = useQuery({ queryKey: ['superpings-left'], queryFn: fetchSuperpingsLeft });
+
+  // Profiles acted on this session. The server already excludes them from the next batch.
+  const [handled, setHandled] = useState<string[]>([]);
+  const [pinned, setPinned] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [match, setMatch] = useState<{ matchId: string; name: string; partnerId: string } | null>(null);
 
-  const currentProfile = PROFILES[profileIndex % PROFILES.length];
+  const queue = useMemo(() => {
+    const remaining = (feed.data ?? []).filter((p) => !handled.includes(p.id));
+    if (!pinned) return remaining;
+    return [...remaining.filter((p) => p.id === pinned), ...remaining.filter((p) => p.id !== pinned)];
+  }, [feed.data, handled, pinned]);
+  const current = queue[0];
 
-  const handleHeart = () => {
-    if (pingsLeft <= 0) {
-      Alert.alert('Out of P!NGs', 'You have used all 18 pings for today! Come back tomorrow.');
+  const urls = useSignedUrls([...(current?.photoPaths ?? []), ...(queue[1]?.photoPaths ?? [])]);
+  const photoUrls = (current?.photoPaths ?? []).map((p) => urls[p]).filter((u): u is string => Boolean(u));
+
+  // Refill when the visible batch is nearly used up.
+  const refillingRef = useRef(false);
+  useEffect(() => {
+    if (!feed.isSuccess || feed.isFetching || refillingRef.current) return;
+    if (handled.length > 0 && queue.length <= 2) {
+      refillingRef.current = true;
+      feed
+        .refetch()
+        .then(() => setHandled([]))
+        .finally(() => {
+          refillingRef.current = false;
+        });
+    }
+  }, [feed, handled.length, queue.length]);
+
+  const act = async (action: SwipeAction) => {
+    if (!current || busy) return;
+    setBusy(true);
+    try {
+      const outcome = await swipe(current.id, action);
+      setHandled((h) => [...h, current.id]);
+      setPinned(null);
+      setActivePhotoIndex(0);
+      if (action === 'superping') queryClient.invalidateQueries({ queryKey: ['superpings-left'] });
+      queryClient.invalidateQueries({ queryKey: ['likes'] });
+      if (outcome.matched && outcome.matchId) {
+        setMatch({ matchId: outcome.matchId, name: current.name, partnerId: current.id });
+        queryClient.invalidateQueries({ queryKey: ['matches'] });
+      }
+    } catch (e) {
+      Alert.alert('Could not send', errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSuperping = () => {
+    if ((superpings.data ?? 0) <= 0) {
+      Alert.alert('No Super P!NGs left', 'You get a new one every day at midnight UTC.');
       return;
     }
-    setPingsLeft((prev) => prev - 1);
-    Alert.alert('⚡ P!NG SENT!', `You sent a genuine P!NG to ${currentProfile.name}!`);
-    setProfileIndex((prev) => prev + 1);
-    setActivePhotoIndex(0);
+    act('superping');
   };
 
-  const handlePass = () => {
-    setProfileIndex((prev) => prev + 1);
-    setActivePhotoIndex(0);
-  };
-
-  const handleRewind = () => {
-    if (profileIndex > 0) {
-      setProfileIndex((prev) => prev - 1);
-    } else {
-      Alert.alert('First Profile', "You're already at the start of your feed.");
+  const handleRewind = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const restored = await undoLastSwipe();
+      if (!restored) {
+        Alert.alert(
+          'Nothing to rewind',
+          'You can rewind your last swipe within 10 minutes, as long as it has not become a match.'
+        );
+        return;
+      }
+      setHandled((h) => h.filter((id) => id !== restored));
+      await feed.refetch();
+      setPinned(restored);
+      setActivePhotoIndex(0);
+      queryClient.invalidateQueries({ queryKey: ['superpings-left'] });
+      queryClient.invalidateQueries({ queryKey: ['likes'] });
+    } catch (e) {
+      Alert.alert('Could not rewind', errorMessage(e));
+    } finally {
+      setBusy(false);
     }
   };
 
+  if (feed.isLoading) {
+    return (
+      <View style={styles.stateWrap}>
+        <ActivityIndicator size="large" color={colors.primaryPink} />
+      </View>
+    );
+  }
+
+  if (feed.isError) {
+    return (
+      <View style={styles.stateWrap}>
+        <Text style={styles.stateTitle}>Can&apos;t load your feed</Text>
+        <Text style={styles.stateBody}>{errorMessage(feed.error)}</Text>
+        <BrutalBox backgroundColor={colors.accentYellow} borderRadius={16} onPress={() => feed.refetch()} contentStyle={styles.stateButton}>
+          <Text style={styles.stateButtonText}>TRY AGAIN</Text>
+        </BrutalBox>
+      </View>
+    );
+  }
+
+  if (!current) {
+    return (
+      <View style={styles.stateWrap}>
+        <MaterialCommunityIcons name="lightning-bolt" size={44} color={colors.primaryPink} />
+        <Text style={styles.stateTitle}>YOU&apos;RE ALL CAUGHT UP</Text>
+        <Text style={styles.stateBody}>
+          No one new nearby right now. Widen your distance or age range in Preferences, or check back soon.
+        </Text>
+        <BrutalBox backgroundColor={colors.accentYellow} borderRadius={16} onPress={() => feed.refetch()} contentStyle={styles.stateButton}>
+          <Text style={styles.stateButtonText}>{feed.isFetching ? 'CHECKING...' : 'REFRESH'}</Text>
+        </BrutalBox>
+      </View>
+    );
+  }
+
+  const palette = paletteFor(current.id);
+  const shownPhoto = photoUrls.length > 0 ? photoUrls[Math.min(activePhotoIndex, photoUrls.length - 1)] : null;
+  const active = activeLabel(current.lastActiveAt);
+  const distance = distanceLabel(current.distanceKm);
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       <View style={styles.container}>
-        {/* ========================================================================= */}
-        {/* 1. MAIN DATING CARD (Matching ref/inApp.png with Neo-Brutalist Yellow Stack) */}
-        {/* ========================================================================= */}
         <View style={styles.cardStackWrapper}>
-          {/* Yellow layered frame peeking out on left & bottom */}
           <View style={styles.yellowUnderlay} />
 
           <BrutalBox
@@ -252,112 +308,112 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = () => {
             style={styles.cardBox}
             contentStyle={styles.cardBoxContent}
           >
-            {/* Top Image & Visual Section */}
             <View style={styles.photoContainer}>
-              <PriyaIllustration
-                jacketColor={currentProfile.jacketColor}
-                bg1={currentProfile.bgGradient[0]}
-                bg2={currentProfile.bgGradient[1]}
-              />
+              {shownPhoto ? (
+                <Image
+                  source={{ uri: shownPhoto }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={150}
+                  accessibilityLabel={`Photo of ${current.name}`}
+                />
+              ) : (
+                <PriyaIllustration jacketColor={palette.jacket} bg1={palette.bgFrom} bg2={palette.bgTo} />
+              )}
 
-              {/* Floating "100% REAL" Badge (Top Left) */}
-              <View style={styles.verifiedBadgeWrapper}>
-                <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark-done" size={13} color={colors.textDark} />
-                  <Text style={styles.verifiedBadgeText}>100% REAL</Text>
-                </View>
-              </View>
-
-              {/* Photo Carousel Indicators: ● ○ ○ ○ (Top Right) */}
-              <View style={styles.photoDotsPill}>
-                {[0, 1, 2, 3].map((idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    activeOpacity={0.8}
-                    onPress={() => setActivePhotoIndex(idx)}
-                    style={[
-                      styles.photoDot,
-                      activePhotoIndex === idx && styles.photoDotActive,
-                    ]}
+              {photoUrls.length > 1 && (
+                <View style={styles.tapZones}>
+                  <Pressable
+                    style={styles.tapZone}
+                    accessibilityLabel="Previous photo"
+                    onPress={() => setActivePhotoIndex((i) => Math.max(0, i - 1))}
                   />
-                ))}
-              </View>
+                  <Pressable
+                    style={styles.tapZone}
+                    accessibilityLabel="Next photo"
+                    onPress={() => setActivePhotoIndex((i) => Math.min(photoUrls.length - 1, i + 1))}
+                  />
+                </View>
+              )}
+
+              {current.isVerified && (
+                <View style={styles.verifiedBadgeWrapper}>
+                  <View style={styles.verifiedBadge}>
+                    <Ionicons name="checkmark-done" size={13} color={colors.textDark} />
+                    <Text style={styles.verifiedBadgeText}>100% REAL</Text>
+                  </View>
+                </View>
+              )}
+
+              {photoUrls.length > 1 && (
+                <View style={styles.photoDotsPill}>
+                  {photoUrls.map((_, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      activeOpacity={0.8}
+                      onPress={() => setActivePhotoIndex(idx)}
+                      style={[styles.photoDot, activePhotoIndex === idx && styles.photoDotActive]}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
 
-            {/* Card Info Section */}
             <View style={styles.infoSection}>
-              {/* Name, Age & Pink Flash Icon */}
               <View style={styles.nameRow}>
                 <Text style={styles.nameTitle}>
-                  {currentProfile.name}, {currentProfile.age}
+                  {current.name.toUpperCase()}, {current.age}
                 </Text>
-                <MaterialCommunityIcons
-                  name="lightning-bolt"
-                  size={24}
-                  color={colors.primaryPink}
-                />
+                <MaterialCommunityIcons name="lightning-bolt" size={24} color={colors.primaryPink} />
               </View>
 
-              {/* Status Badges Row */}
-              <View style={styles.badgesRow}>
-                {/* ACTIVE TODAY (Green Pill) */}
-                <View style={styles.activePill}>
-                  <View style={styles.greenDot} />
-                  <Text style={styles.activePillText}>
-                    {currentProfile.activeStatus}
-                  </Text>
+              {(active || distance) && (
+                <View style={styles.badgesRow}>
+                  {active && (
+                    <View style={styles.activePill}>
+                      <View style={styles.greenDot} />
+                      <Text style={styles.activePillText}>{active}</Text>
+                    </View>
+                  )}
+                  {distance && (
+                    <View style={styles.distancePill}>
+                      <Feather name="navigation" size={11} color={colors.textDark} />
+                      <Text style={styles.distancePillText}>{distance}</Text>
+                    </View>
+                  )}
                 </View>
+              )}
 
-                {/* DISTANCE (Lavender Pill) */}
-                <View style={styles.distancePill}>
-                  <Feather name="navigation" size={11} color={colors.textDark} />
-                  <Text style={styles.distancePillText}>
-                    {currentProfile.distance}
-                  </Text>
+              {current.bio ? <Text style={styles.bioText}>{current.bio}</Text> : null}
+
+              {current.tags.length > 0 && (
+                <View style={styles.chipsRow}>
+                  {current.tags.map((tag) => (
+                    <View key={tag} style={styles.interestChip}>
+                      <Text style={styles.interestChipText}>{tag}</Text>
+                    </View>
+                  ))}
                 </View>
-              </View>
-
-              {/* Second Row: Reply Rate Badge */}
-              <View style={styles.repliesPill}>
-                <Text style={styles.repliesPillText}>
-                  {currentProfile.replyRate}
-                </Text>
-              </View>
-
-              {/* Interest Chips Row */}
-              <View style={styles.chipsRow}>
-                {currentProfile.tags.map((tag, idx) => (
-                  <View key={idx} style={styles.interestChip}>
-                    <Text style={styles.interestChipText}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
+              )}
             </View>
           </BrutalBox>
         </View>
 
-        {/* ========================================================================= */}
-        {/* 2. ACTION CONTROLS (Below Card) */}
-        {/* ========================================================================= */}
         <View style={styles.controlsSection}>
-          {/* Yellow Daily P!NGs Left Badge */}
           <BrutalBox
             backgroundColor={colors.accentYellow}
             borderColor={colors.borderBlack}
             borderWidth={2}
             borderRadius={999}
             shadowOffset={{ x: 2.5, y: 2.5 }}
+            onPress={handleSuperping}
             contentStyle={styles.pingsLeftContent}
           >
             <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.textDark} />
-            <Text style={styles.pingsLeftText}>
-              {pingsLeft} P!NGS LEFT TODAY
-            </Text>
+            <Text style={styles.pingsLeftText}>SUPER P!NG · {superpings.data ?? 0} LEFT TODAY</Text>
           </BrutalBox>
 
-          {/* 3 Circular Action Buttons */}
           <View style={styles.actionButtonsRow}>
-            {/* Rewind ↺ */}
             <BrutalBox
               backgroundColor={colors.cardWhite}
               borderColor={colors.borderBlack}
@@ -365,32 +421,33 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = () => {
               borderRadius={999}
               shadowOffset={{ x: 3, y: 3 }}
               onPress={handleRewind}
+              disabled={busy}
               contentStyle={styles.sideActionBtn}
             >
               <Feather name="rotate-ccw" size={22} color={colors.textDark} />
             </BrutalBox>
 
-            {/* Send P!NG Heart ❤️ */}
             <BrutalBox
               backgroundColor={colors.primaryPink}
               borderColor={colors.borderBlack}
               borderWidth={2.6}
               borderRadius={999}
               shadowOffset={{ x: 3.5, y: 3.5 }}
-              onPress={handleHeart}
+              onPress={() => act('like')}
+              disabled={busy}
               contentStyle={styles.centerHeartBtn}
             >
               <Ionicons name="heart" size={34} color="#FFFFFF" />
             </BrutalBox>
 
-            {/* Pass ✕ */}
             <BrutalBox
               backgroundColor={colors.cardWhite}
               borderColor={colors.borderBlack}
               borderWidth={2.4}
               borderRadius={999}
               shadowOffset={{ x: 3, y: 3 }}
-              onPress={handlePass}
+              onPress={() => act('pass')}
+              disabled={busy}
               contentStyle={styles.sideActionBtn}
             >
               <Feather name="x" size={24} color={colors.textDark} />
@@ -398,11 +455,134 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = () => {
           </View>
         </View>
       </View>
+
+      <Modal transparent visible={match !== null} animationType="fade" onRequestClose={() => setMatch(null)}>
+        <View style={styles.matchOverlay}>
+          <BrutalBox
+            backgroundColor={colors.accentYellow}
+            borderColor={colors.borderBlack}
+            borderWidth={2.8}
+            borderRadius={24}
+            shadowOffset={{ x: 5, y: 5 }}
+            style={styles.matchCard}
+            contentStyle={styles.matchCardContent}
+          >
+            <Text style={styles.matchTitle}>IT&apos;S A MATCH!</Text>
+            <Text style={styles.matchBody}>You and {match?.name} P!NGed each other.</Text>
+            <BrutalBox
+              backgroundColor={colors.primaryPink}
+              borderRadius={16}
+              onPress={() => {
+                const target = match;
+                setMatch(null);
+                if (target) onOpenChat({ matchId: target.matchId, partnerId: target.partnerId, partnerName: target.name });
+              }}
+              contentStyle={styles.matchButton}
+            >
+              <Text style={styles.matchButtonTextLight}>SAY HI</Text>
+            </BrutalBox>
+            <TouchableOpacity onPress={() => setMatch(null)} accessibilityRole="button">
+              <Text style={styles.matchDismiss}>KEEP SWIPING</Text>
+            </TouchableOpacity>
+          </BrutalBox>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  stateWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 28,
+    gap: 14,
+  },
+  stateTitle: {
+    fontSize: 20,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+    textAlign: 'center',
+    letterSpacing: 0.4,
+  },
+  stateBody: {
+    fontSize: 14,
+    fontFamily: typography.bodyMedium,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  stateButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 26,
+    alignItems: 'center',
+  },
+  stateButtonText: {
+    fontSize: 15,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+    letterSpacing: 0.5,
+  },
+  tapZones: {
+    ...StyleSheet.absoluteFill,
+    flexDirection: 'row',
+  },
+  tapZone: {
+    flex: 1,
+  },
+  bioText: {
+    fontSize: 13.5,
+    fontFamily: typography.bodyMedium,
+    color: '#374151',
+    lineHeight: 19,
+  },
+  matchOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  matchCard: {
+    width: '100%',
+    maxWidth: 360,
+  },
+  matchCardContent: {
+    padding: 24,
+    alignItems: 'center',
+    gap: 14,
+  },
+  matchTitle: {
+    fontSize: 30,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+    letterSpacing: 0.6,
+  },
+  matchBody: {
+    fontSize: 15,
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+    textAlign: 'center',
+  },
+  matchButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 44,
+    alignItems: 'center',
+  },
+  matchButtonTextLight: {
+    fontSize: 18,
+    fontFamily: typography.headline,
+    color: '#FFFFFF',
+    letterSpacing: 0.6,
+  },
+  matchDismiss: {
+    fontSize: 13,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textDark,
+    textDecorationLine: 'underline',
+    letterSpacing: 0.5,
+  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 16,

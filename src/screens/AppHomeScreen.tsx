@@ -17,6 +17,8 @@ import { ProfileScreen } from './inapp/ProfileScreen';
 import { ChatScreen } from './inapp/ChatScreen';
 import { PreferencesScreen } from './inapp/PreferencesScreen';
 import { UserAccount } from '../types/user';
+import { useInboxBadges } from '../hooks/useInboxBadges';
+import type { ChatTarget } from './inapp/MatchesScreen';
 
 interface AppHomeScreenProps {
   user: UserAccount;
@@ -32,7 +34,8 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
   onReplayOnboarding,
 }) => {
   const [activeTab, setActiveTab] = useState<InAppTab>('discover');
-  const [activeChatPartner, setActiveChatPartner] = useState<string | null>(null);
+  const [activeChat, setActiveChat] = useState<ChatTarget | null>(null);
+  const { likesCount, hasUnreadMatches } = useInboxBadges(user.id);
   const [showPreferences, setShowPreferences] = useState(false);
   const [isProfileSubScreenActive, setIsProfileSubScreenActive] = useState(false);
   const [profileSubScreen, setProfileSubScreen] = useState<
@@ -44,14 +47,8 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
   };
 
   // If a chat is active, display the full Chat Direct screen
-  if (activeChatPartner) {
-    return (
-      <ChatScreen
-        partnerName={activeChatPartner}
-        user={user}
-        onBack={() => setActiveChatPartner(null)}
-      />
-    );
+  if (activeChat) {
+    return <ChatScreen target={activeChat} user={user} onBack={() => setActiveChat(null)} />;
   }
 
   // If Preferences & Filters is opened directly from Discover tab
@@ -76,8 +73,8 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
             setShowPreferences(false);
             setActiveTab(tab);
           }}
-          likesCount={9}
-          hasUnreadMatches={true}
+          likesCount={likesCount}
+          hasUnreadMatches={hasUnreadMatches}
         />
       </SafeAreaView>
     );
@@ -103,13 +100,10 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
 
       {/* 2. Main In-App Viewport */}
       <View style={styles.contentViewport}>
-        {activeTab === 'discover' && <DiscoverScreen user={user} />}
-        {activeTab === 'likes' && <LikesScreen user={user} />}
+        {activeTab === 'discover' && <DiscoverScreen user={user} onOpenChat={setActiveChat} />}
+        {activeTab === 'likes' && <LikesScreen user={user} onOpenChat={setActiveChat} />}
         {activeTab === 'matches' && (
-          <MatchesScreen
-            user={user}
-            onOpenChat={(name) => setActiveChatPartner(name)}
-          />
+          <MatchesScreen user={user} onOpenChat={setActiveChat} />
         )}
         {activeTab === 'profile' && (
           <ProfileScreen
@@ -131,8 +125,8 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
           setProfileSubScreen('none');
           setIsProfileSubScreenActive(false);
         }}
-        likesCount={9}
-        hasUnreadMatches={true}
+        likesCount={likesCount}
+        hasUnreadMatches={hasUnreadMatches}
       />
     </SafeAreaView>
   );

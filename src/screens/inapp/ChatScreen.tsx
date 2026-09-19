@@ -1,208 +1,303 @@
-import React, { useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
-  TextInput,
   TouchableOpacity,
+  TextInput,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   SafeAreaView,
+  Alert,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import Svg, {
-  Circle,
-  Path,
-  G,
-} from 'react-native-svg';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
-import { BrutalBox } from '../../components/BrutalBox';
 import { DotGridBackground } from '../../components/DotGridBackground';
+import { BrutalBox } from '../../components/BrutalBox';
+import { ProfileAvatar } from '../../components/ProfileAvatar';
 import { UserAccount } from '../../types/user';
+import { useSignedUrls } from '../../hooks/useSignedUrls';
+import {
+  ChatMessage,
+  MESSAGE_PAGE_SIZE,
+  fetchMatches,
+  fetchMessages,
+  markRead,
+  sendMessage,
+  subscribeToMessages,
+} from '../../services/chat';
+import { unmatch } from '../../services/discover';
+import { REPORT_REASONS, ReportReason, blockUser, reportUser } from '../../services/safety';
+import { errorMessage } from '../../services/errors';
+import { clockTime } from '../../lib/format';
+import type { ChatTarget } from './MatchesScreen';
 
 interface ChatScreenProps {
-  partnerName?: string;
+  target: ChatTarget;
   user: UserAccount;
   onBack: () => void;
 }
 
-interface MessageItem {
-  id: string;
-  sender: 'partner' | 'user';
-  text?: string;
-  time: string;
-  readStatus?: boolean;
+const ICEBREAKER = 'Two truths and a lie, go!';
+
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOf(today) - startOf(d)) / 86_400_000);
+  if (diffDays === 0) return 'TODAY';
+  if (diffDays === 1) return 'YESTERDAY';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
 }
 
-// Mini Teal Avatar for Chat Header
-function MiniTealAvatar() {
-  return (
-    <Svg width="36" height="36" viewBox="0 0 40 40">
-      <Circle cx="20" cy="20" r="19" fill="#0D9488" />
-      <G transform="translate(4, 3)">
-        <Circle cx="16" cy="15" r="12" fill="#06B6D4" />
-        <Circle cx="16" cy="16" r="8" fill="#FED7AA" />
-        <Path d="M 9 14 Q 16 9 23 14 Q 20 12 16 13 Q 12 12 9 14 Z" fill="#06B6D4" />
-        <Circle cx="13" cy="16" r="1.2" fill="#18181B" />
-        <Circle cx="19" cy="16" r="1.2" fill="#18181B" />
-        <Path d="M 14.5 19 Q 16 21 17.5 19" fill="none" stroke="#E11D48" strokeWidth="1" strokeLinecap="round" />
-        <Path d="M 5 30 L 9 23 Q 16 21 23 23 L 27 30 Z" fill="#F59E0B" stroke="#000" strokeWidth="1" />
-      </G>
-    </Svg>
-  );
-}
+type PendingMessage = ChatMessage & { pending?: true };
 
-// Detailed Priya Avatar for Contact Card
-function PriyaChatAvatar() {
-  return (
-    <Svg width="54" height="54" viewBox="0 0 60 60">
-      <Circle cx="30" cy="30" r="28" fill="#FCE7F3" />
-      <G transform="translate(5, 5)">
-        {/* Dark bob hair */}
-        <Path d="M 8 18 Q 25 6 42 18 L 45 45 Q 25 50 5 45 Z" fill="#18181B" />
-        {/* Face */}
-        <Circle cx="25" cy="25" r="13" fill="#FED7AA" />
-        {/* Glasses */}
-        <Circle cx="19" cy="24" r="4.5" fill="none" stroke="#000" strokeWidth="1.4" />
-        <Circle cx="31" cy="24" r="4.5" fill="none" stroke="#000" strokeWidth="1.4" />
-        <Path d="M 23.5 24 L 26.5 24" stroke="#000" strokeWidth="1.4" />
-        {/* Eyes behind glasses */}
-        <Circle cx="19" cy="24" r="1.5" fill="#18181B" />
-        <Circle cx="31" cy="24" r="1.5" fill="#18181B" />
-        {/* Wide happy smile */}
-        <Path d="M 19 30 Q 25 36 31 30" fill="none" stroke="#E11D48" strokeWidth="1.8" strokeLinecap="round" />
-        <Path d="M 21 31 Q 25 34 29 31" fill="#FFF" />
-        {/* Yellow Jacket with collar */}
-        <Path d="M 5 48 L 12 36 Q 25 34 38 36 L 45 48 Z" fill="#FFE600" stroke="#000" strokeWidth="1.5" />
-        <Path d="M 18 36 L 25 44 L 32 36" fill="#18181B" />
-      </G>
-    </Svg>
-  );
-}
-
-export const ChatScreen: React.FC<ChatScreenProps> = ({
-  partnerName = 'Priya',
-  onBack,
-}) => {
-  const [showWarning, setShowWarning] = useState(true);
-  const [isPhotoUnlocked, setIsPhotoUnlocked] = useState(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [inputText, setInputText] = useState('');
-  const [customMessages, setCustomMessages] = useState<MessageItem[]>([]);
+export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) => {
+  const { matchId, partnerId, partnerName } = target;
+  const queryClient = useQueryClient();
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const handleSendMessage = (textToSend?: string) => {
-    const text = textToSend || inputText;
-    if (!text.trim()) return;
+  const [messages, setMessages] = useState<PendingMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [inputText, setInputText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [showWarning, setShowWarning] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const formattedHours = hours % 12 || 12;
-    const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
-    const timeStr = `${formattedHours}:${formattedMinutes} ${ampm}`;
+  // Partner details come from the matches list (age, photo, verified).
+  const matchesQuery = useQuery({ queryKey: ['matches'], queryFn: fetchMatches });
+  const summary = matchesQuery.data?.find((m) => m.matchId === matchId);
+  const partnerUserId = partnerId ?? summary?.partnerId;
+  const urls = useSignedUrls(summary?.photoPath ? [summary.photoPath] : []);
 
-    const newMsg: MessageItem = {
-      id: String(Date.now()),
-      sender: 'user',
-      text: text.trim(),
-      time: timeStr,
-      readStatus: true,
+  const scrollToEnd = useCallback(() => {
+    requestAnimationFrame(() => scrollViewRef.current?.scrollToEnd({ animated: true }));
+  }, []);
+
+  const markConversationRead = useCallback(() => {
+    markRead(matchId)
+      .then(() => queryClient.invalidateQueries({ queryKey: ['matches'] }))
+      .catch(() => undefined); // a failed receipt must never block reading
+  }, [matchId, queryClient]);
+
+  // Initial page.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchMessages(matchId)
+      .then((page) => {
+        if (cancelled) return;
+        setMessages([...page].reverse());
+        setHasMore(page.length === MESSAGE_PAGE_SIZE);
+        setLoadError(null);
+        markConversationRead();
+      })
+      .catch((e) => !cancelled && setLoadError(errorMessage(e)))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
     };
+  }, [matchId, markConversationRead]);
 
-    setCustomMessages((prev) => [...prev, newMsg]);
-    setInputText('');
-
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
-
-  const handlePromptTap = () => {
-    const promptText = 'Cowboy Bebop, Samurai Champloo, and Evangelion! What about you?';
-    handleSendMessage(promptText);
-  };
-
-  const handleCall = () => {
-    Alert.alert('📞 Direct Audio Call', `Calling ${partnerName}... Voice call feature coming soon!`);
-  };
-
-  const handleSafetyCenter = () => {
-    Alert.alert(
-      '🛡️ Safety & Verification',
-      `${partnerName} is 100% verified with selfie authentication. Never send money or share personal passwords.`
+  // Live messages and read receipts.
+  useEffect(() => {
+    return subscribeToMessages(
+      matchId,
+      (incoming) => {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === incoming.id)) return prev;
+          // Replace our optimistic copy of the same message if it is still pending.
+          const pendingIndex = prev.findIndex(
+            (m) => m.pending && m.senderId === incoming.senderId && m.body === incoming.body
+          );
+          if (pendingIndex >= 0) {
+            const next = [...prev];
+            next[pendingIndex] = incoming;
+            return next;
+          }
+          return [...prev, incoming];
+        });
+        if (incoming.senderId !== user.id) markConversationRead();
+        scrollToEnd();
+      },
+      (updated) => setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
     );
-  };
+  }, [matchId, user.id, markConversationRead, scrollToEnd]);
 
-  const handleTogglePhotoReveal = () => {
-    if (!isPhotoUnlocked) {
-      setIsPhotoUnlocked(true);
-      Alert.alert('🔓 Both Tapped to Reveal!', 'Ephemeral photo unlocked for 10 seconds.');
-    } else {
-      setIsPhotoUnlocked(false);
+  useEffect(() => {
+    if (!loading) scrollToEnd();
+  }, [loading, scrollToEnd]);
+
+  const loadEarlier = async () => {
+    const oldest = messages.find((m) => !m.pending);
+    if (!oldest || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchMessages(matchId, oldest.createdAt);
+      setMessages((prev) => [...[...page].reverse(), ...prev]);
+      setHasMore(page.length === MESSAGE_PAGE_SIZE);
+    } catch (e) {
+      Alert.alert('Could not load earlier messages', errorMessage(e));
+    } finally {
+      setLoadingMore(false);
     }
   };
 
-  const handleToggleAudio = () => {
-    setIsPlayingAudio(!isPlayingAudio);
+  const handleSend = async (textToSend?: string) => {
+    const text = (textToSend ?? inputText).trim();
+    if (!text || sending) return;
+    const tempId = `tmp-${Date.now()}`;
+    const optimistic: PendingMessage = {
+      id: tempId,
+      matchId,
+      senderId: user.id,
+      body: text,
+      createdAt: new Date().toISOString(),
+      readAt: null,
+      pending: true,
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    if (textToSend === undefined) setInputText('');
+    setSending(true);
+    scrollToEnd();
+    try {
+      const saved = await sendMessage(matchId, user.id, text);
+      setMessages((prev) => {
+        // Realtime may already have swapped in the saved row.
+        const withoutTemp = prev.filter((m) => m.id !== tempId);
+        return withoutTemp.some((m) => m.id === saved.id) ? withoutTemp : [...withoutTemp, saved];
+      });
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
+    } catch (e) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      if (textToSend === undefined) setInputText(text);
+      Alert.alert('Message not sent', errorMessage(e));
+    } finally {
+      setSending(false);
+    }
   };
+
+  const handleBlock = () => {
+    if (!partnerUserId) return;
+    setMenuOpen(false);
+    Alert.alert('Block ' + partnerName + '?', 'You will no longer see each other and this chat will be removed.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Block',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await blockUser(user.id, partnerUserId);
+            queryClient.invalidateQueries({ queryKey: ['matches'] });
+            queryClient.invalidateQueries({ queryKey: ['feed'] });
+            onBack();
+          } catch (e) {
+            Alert.alert('Could not block', errorMessage(e));
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleUnmatch = () => {
+    setMenuOpen(false);
+    Alert.alert('Unmatch?', `You and ${partnerName} will no longer be able to message each other.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Unmatch',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await unmatch(matchId);
+            queryClient.invalidateQueries({ queryKey: ['matches'] });
+            onBack();
+          } catch (e) {
+            Alert.alert('Could not unmatch', errorMessage(e));
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleReport = async (reason: ReportReason) => {
+    if (!partnerUserId) return;
+    setReportOpen(false);
+    try {
+      await reportUser(user.id, partnerUserId, reason);
+      Alert.alert('Report sent', 'Thanks for keeping P!NG real. Our team will take a look. You can also block this person.');
+    } catch (e) {
+      Alert.alert('Could not send report', errorMessage(e));
+    }
+  };
+
+  // Group messages under a day pill.
+  const rows = useMemo(() => {
+    const out: Array<{ kind: 'day'; key: string; label: string } | { kind: 'msg'; key: string; msg: PendingMessage }> = [];
+    let lastDay = '';
+    for (const msg of messages) {
+      const label = dayLabel(msg.createdAt);
+      if (label !== lastDay) {
+        out.push({ kind: 'day', key: `day-${msg.id}`, label });
+        lastDay = label;
+      }
+      out.push({ kind: 'msg', key: msg.id, msg });
+    }
+    return out;
+  }, [messages]);
+
+  const verified = summary?.isVerified ?? false;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <DotGridBackground />
 
-      {/* 1. TOP HEADER BAR matching ref/inAppChat.png */}
       <View style={styles.topHeaderBar}>
-        {/* Back Button */}
         <TouchableOpacity
           activeOpacity={0.75}
           onPress={onBack}
           style={styles.backIconButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
         >
           <Feather name="arrow-left" size={26} color={colors.textDark} />
         </TouchableOpacity>
 
-        {/* Center Title */}
         <Text style={styles.chatDirectTitle}>CHAT DIRECT</Text>
 
-        {/* Right Actions: Options Menu & Avatar */}
         <View style={styles.topRightRow}>
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() =>
-              Alert.alert('Options', 'Chat Options:\n• Clear chat\n• Mute notifications\n• Block or report user')
-            }
+            onPress={() => setMenuOpen(true)}
             style={styles.moreIconButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Chat options"
           >
             <Ionicons name="ellipsis-vertical" size={22} color={colors.textDark} />
           </TouchableOpacity>
-
-          <View style={styles.headerAvatarWrap}>
-            <MiniTealAvatar />
-          </View>
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={styles.keyboardContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* 2. PARTNER CONTACT CARD */}
           <BrutalBox
             backgroundColor="#FFFFFF"
             borderColor={colors.borderBlack}
@@ -212,39 +307,37 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             contentStyle={styles.contactCardContent}
           >
             <View style={styles.contactCardRow}>
-              {/* Avatar with Online Dot */}
               <View style={styles.contactAvatarWrap}>
                 <View style={styles.contactAvatarBorder}>
-                  <PriyaChatAvatar />
+                  <ProfileAvatar
+                    uri={summary?.photoPath ? urls[summary.photoPath] : null}
+                    seed={partnerUserId ?? matchId}
+                    size={52}
+                    accessibilityLabel={`Photo of ${partnerName}`}
+                  />
                 </View>
-                <View style={styles.onlineDot} />
               </View>
 
-              {/* Name & Active Status Pill */}
               <View style={styles.contactInfoCol}>
-                <Text style={styles.contactName}>{partnerName.toUpperCase()}, 27</Text>
-                <View style={styles.activePill}>
-                  <View style={styles.greenActiveDot} />
-                  <Text style={styles.activePillText}>ACTIVE TODAY</Text>
-                </View>
+                <Text style={styles.contactName}>
+                  {partnerName.toUpperCase()}
+                  {summary?.age ? `, ${summary.age}` : ''}
+                </Text>
+                {verified && (
+                  <View style={styles.activePill}>
+                    <Ionicons name="checkmark-done" size={12} color={colors.textDark} />
+                    <Text style={styles.activePillText}>100% REAL</Text>
+                  </View>
+                )}
               </View>
 
-              {/* Action Buttons: Phone & Shield */}
               <View style={styles.contactActionsRow}>
-                <TouchableOpacity activeOpacity={0.8} onPress={handleCall}>
-                  <BrutalBox
-                    backgroundColor="#FFFFFF"
-                    borderColor={colors.borderBlack}
-                    borderWidth={2}
-                    borderRadius={999}
-                    shadowOffset={{ x: 2, y: 2 }}
-                    contentStyle={styles.actionRoundBtn}
-                  >
-                    <Ionicons name="call-outline" size={17} color={colors.textDark} />
-                  </BrutalBox>
-                </TouchableOpacity>
-
-                <TouchableOpacity activeOpacity={0.8} onPress={handleSafetyCenter}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setMenuOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Safety options"
+                >
                   <BrutalBox
                     backgroundColor="#FFFFFF"
                     borderColor={colors.borderBlack}
@@ -260,7 +353,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             </View>
           </BrutalBox>
 
-          {/* 3. SAFETY WARNING BANNER */}
           {showWarning && (
             <BrutalBox
               backgroundColor={colors.primaryPink}
@@ -274,254 +366,121 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               <View style={styles.warningLeftRow}>
                 <Text style={styles.warningIcon}>⚠️</Text>
                 <Text style={styles.warningText} numberOfLines={1}>
-                  KEEP CHATS IN P!NG. NEVER SEND MONE...
+                  KEEP CHATS IN P!NG. NEVER SEND MONEY.
                 </Text>
               </View>
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => setShowWarning(false)}
                 style={styles.closeWarningBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss safety notice"
               >
                 <Ionicons name="close" size={14} color="#FFFFFF" />
               </TouchableOpacity>
             </BrutalBox>
           )}
 
-          {/* 4. TIMESTAMP PILL */}
-          <View style={styles.timestampContainer}>
-            <BrutalBox
-              backgroundColor="#FFFFFF"
-              borderColor={colors.borderBlack}
-              borderWidth={1.8}
-              borderRadius={999}
-              shadowOffset={{ x: 2, y: 2 }}
-              contentStyle={styles.timestampPill}
-            >
-              <Feather name="clock" size={12} color={colors.primaryPink} />
-              <Text style={styles.timestampText}>TODAY 12:38 PM</Text>
-            </BrutalBox>
-          </View>
+          {loading && <ActivityIndicator style={styles.centerSpinner} color={colors.primaryPink} />}
 
-          {/* 5. INCOMING MESSAGE 1 (Priya, 12:40 PM) */}
-          <View style={styles.incomingMsgContainer}>
-            <BrutalBox
-              backgroundColor="#FFFFFF"
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={18}
-              shadowOffset={{ x: 3, y: 3 }}
-              style={styles.incomingBubbleBox}
-              contentStyle={styles.incomingBubbleContent}
-            >
-              <Text style={styles.incomingMsgText}>
-                Let’s check out that flea market on Sunday! Heard they have tons of rare Japanese vinyl 🎶
-              </Text>
-            </BrutalBox>
-            <Text style={styles.incomingSubTime}>12:40 PM</Text>
-          </View>
+          {loadError && (
+            <Text style={styles.chatNotice}>Could not load messages: {loadError}</Text>
+          )}
 
-          {/* 6. OUTGOING MESSAGE 1 (Alex, 12:41 PM) */}
-          <View style={styles.outgoingMsgContainer}>
-            <BrutalBox
-              backgroundColor={colors.primaryPink}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={18}
-              shadowOffset={{ x: 3, y: 3 }}
-              style={styles.outgoingBubbleBox}
-              contentStyle={styles.outgoingBubbleContent}
-            >
-              <Text style={styles.outgoingMsgText}>
-                Count me in! I’ll bring my portable turntable if you bring coffee ☕⚡
-              </Text>
-            </BrutalBox>
-            <View style={styles.outgoingSubTimeRow}>
-              <Text style={styles.outgoingSubTime}>12:41 PM</Text>
-              <MaterialCommunityIcons name="check-all" size={15} color={colors.primaryPink} />
-            </View>
-          </View>
+          {hasMore && !loading && (
+            <TouchableOpacity onPress={loadEarlier} disabled={loadingMore} style={styles.loadMore}>
+              <Text style={styles.loadMoreText}>{loadingMore ? 'LOADING...' : 'LOAD EARLIER MESSAGES'}</Text>
+            </TouchableOpacity>
+          )}
 
-          {/* 7. EPHEMERAL "BOTH TAP TO REVEAL" MEDIA CARD (12:43 PM) */}
-          <View style={styles.mediaCardContainer}>
-            <BrutalBox
-              backgroundColor="#FFFFFF"
-              borderColor={colors.borderBlack}
-              borderWidth={2.4}
-              borderRadius={18}
-              shadowOffset={{ x: 3.5, y: 3.5 }}
-              overflow="hidden"
-              style={styles.mediaCardBox}
-              contentStyle={styles.mediaCardContent}
-            >
-              {/* Lavender Upper Body with Ephemeral Tag */}
-              <View style={styles.ephemeralArea}>
-                {/* Ephemeral Tag */}
-                <View style={styles.ephemeralTagWrap}>
-                  <BrutalBox
-                    backgroundColor={colors.accentYellow}
-                    borderColor={colors.borderBlack}
-                    borderWidth={1.8}
-                    borderRadius={6}
-                    shadowOffset={{ x: 1.8, y: 1.8 }}
-                    contentStyle={styles.ephemeralTagContent}
-                  >
-                    <Text style={styles.ephemeralTagText}>EPHEMERAL</Text>
-                  </BrutalBox>
-                </View>
+          {!loading && !loadError && messages.length === 0 && (
+            <Text style={styles.chatNotice}>You matched! Say something to {partnerName}.</Text>
+          )}
 
-                {/* Central Lock Graphic */}
-                <View style={styles.lockGraphicCircle}>
-                  <Ionicons name="lock-closed" size={24} color={colors.primaryPink} />
-                </View>
-
-                {/* Unlock Button */}
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={handleTogglePhotoReveal}
-                  style={styles.unlockBtnWrapper}
-                >
+          {rows.map((row) => {
+            if (row.kind === 'day') {
+              return (
+                <View key={row.key} style={styles.timestampContainer}>
                   <BrutalBox
                     backgroundColor="#FFFFFF"
                     borderColor={colors.borderBlack}
-                    borderWidth={2}
+                    borderWidth={1.8}
                     borderRadius={999}
-                    shadowOffset={{ x: 2.2, y: 2.2 }}
-                    contentStyle={styles.unlockBtnContent}
+                    shadowOffset={{ x: 2, y: 2 }}
+                    contentStyle={styles.timestampPill}
                   >
-                    <Text style={styles.unlockBtnEmoji}>🔒</Text>
-                    <Text style={styles.unlockBtnText}>
-                      {isPhotoUnlocked ? 'PHOTO UNLOCKED (TAP TO HIDE)' : 'BOTH TAP TO REVEAL'}
-                    </Text>
+                    <Feather name="clock" size={12} color={colors.primaryPink} />
+                    <Text style={styles.timestampText}>{row.label}</Text>
                   </BrutalBox>
-                </TouchableOpacity>
-
-                <Text style={styles.ephemeralSubtitle}>
-                  {isPhotoUnlocked
-                    ? '✨ Record stash unlocked safely!'
-                    : 'Tap together to unlock photo safely'}
-                </Text>
-              </View>
-
-              {/* Bottom White Footer */}
-              <View style={styles.mediaFooterRow}>
-                <Text style={styles.mediaFooterTitle}>RECORD STASH PREVIEW.PNG</Text>
-                <Text style={styles.mediaFooterTime}>12:43 PM</Text>
-              </View>
-            </BrutalBox>
-          </View>
-
-          {/* 8. OUTGOING AUDIO P!NG VOICE NOTE BUBBLE (12:44 PM) */}
-          <View style={styles.outgoingMsgContainer}>
-            <BrutalBox
-              backgroundColor={colors.primaryPink}
-              borderColor={colors.borderBlack}
-              borderWidth={2.4}
-              borderRadius={18}
-              shadowOffset={{ x: 3, y: 3 }}
-              style={styles.audioBubbleBox}
-              contentStyle={styles.audioBubbleContent}
-            >
-              <View style={styles.audioBubbleRow}>
-                {/* Play Button */}
-                <TouchableOpacity activeOpacity={0.8} onPress={handleToggleAudio}>
-                  <View style={styles.audioPlayBtn}>
-                    <Ionicons
-                      name={isPlayingAudio ? 'pause' : 'play'}
-                      size={18}
-                      color={colors.textDark}
-                      style={{ marginLeft: isPlayingAudio ? 0 : 2 }}
+                </View>
+              );
+            }
+            const { msg } = row;
+            const mine = msg.senderId === user.id;
+            return mine ? (
+              <View key={row.key} style={styles.outgoingMsgContainer}>
+                <BrutalBox
+                  backgroundColor={colors.primaryPink}
+                  borderColor={colors.borderBlack}
+                  borderWidth={2.2}
+                  borderRadius={18}
+                  shadowOffset={{ x: 3, y: 3 }}
+                  style={[styles.outgoingBubbleBox, msg.pending && styles.pendingBubble]}
+                  contentStyle={styles.outgoingBubbleContent}
+                >
+                  <Text style={styles.outgoingMsgText}>{msg.body}</Text>
+                </BrutalBox>
+                <View style={styles.outgoingSubTimeRow}>
+                  <Text style={styles.outgoingSubTime}>
+                    {msg.pending ? 'Sending...' : clockTime(msg.createdAt)}
+                    {msg.readAt ? ' • READ' : ''}
+                  </Text>
+                  {!msg.pending && (
+                    <MaterialCommunityIcons
+                      name="check-all"
+                      size={15}
+                      color={msg.readAt ? colors.primaryPink : '#9CA3AF'}
                     />
-                  </View>
-                </TouchableOpacity>
-
-                {/* Waveform Visualization */}
-                <View style={styles.waveformContainer}>
-                  <View style={[styles.waveBar, { height: 12, backgroundColor: '#FFE600' }]} />
-                  <View style={[styles.waveBar, { height: 20, backgroundColor: '#FFFFFF' }]} />
-                  <View style={[styles.waveBar, { height: 14, backgroundColor: '#FFE600' }]} />
-                  <View style={[styles.waveBar, { height: 24, backgroundColor: '#FFFFFF' }]} />
-                  <View style={[styles.waveBar, { height: 18, backgroundColor: '#FFE600' }]} />
-                  <View style={[styles.waveBar, { height: 26, backgroundColor: '#FFFFFF' }]} />
-                  <View style={[styles.waveBar, { height: 15, backgroundColor: '#FFE600' }]} />
-                  <View style={[styles.waveBar, { height: 22, backgroundColor: '#FFFFFF' }]} />
-                  <View style={[styles.waveBar, { height: 16, backgroundColor: '#FFE600' }]} />
-                  <View style={[styles.waveBar, { height: 10, backgroundColor: '#FFFFFF' }]} />
+                  )}
                 </View>
               </View>
-
-              {/* Audio Subtitle Line */}
-              <View style={styles.audioSubRow}>
-                <Text style={styles.audioDurationText}>0:24</Text>
-                <Text style={styles.audioPingBrand}>AUDIO P!NG</Text>
+            ) : (
+              <View key={row.key} style={styles.incomingMsgContainer}>
+                <BrutalBox
+                  backgroundColor="#FFFFFF"
+                  borderColor={colors.borderBlack}
+                  borderWidth={2.2}
+                  borderRadius={18}
+                  shadowOffset={{ x: 3, y: 3 }}
+                  style={styles.incomingBubbleBox}
+                  contentStyle={styles.incomingBubbleContent}
+                >
+                  <Text style={styles.incomingMsgText}>{msg.body}</Text>
+                </BrutalBox>
+                <Text style={styles.incomingSubTime}>{clockTime(msg.createdAt)}</Text>
               </View>
-            </BrutalBox>
+            );
+          })}
 
-            <View style={styles.outgoingSubTimeRow}>
-              <Text style={styles.outgoingSubTime}>12:44 PM • READ</Text>
-              <MaterialCommunityIcons name="check-all" size={15} color={colors.primaryPink} />
-            </View>
-          </View>
-
-          {/* 9. ICEBREAKER PROMPT BANNER */}
-          <TouchableOpacity activeOpacity={0.85} onPress={handlePromptTap}>
-            <BrutalBox
-              backgroundColor={colors.accentYellow}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={16}
-              shadowOffset={{ x: 3, y: 3 }}
-              style={styles.promptContainer}
-              contentStyle={styles.promptContent}
-            >
-              <Ionicons name="flash" size={16} color={colors.primaryPink} />
-              <Text style={styles.promptText}>
-                PROMPT: SHARE YOUR TOP 3 ANIME SOUNDTRACKS
-              </Text>
-            </BrutalBox>
-          </TouchableOpacity>
-
-          {/* 10. DYNAMIC SENT MESSAGES */}
-          {customMessages.map((msg) => (
-            <View key={msg.id} style={styles.outgoingMsgContainer}>
+          {!loading && messages.length === 0 && (
+            <TouchableOpacity activeOpacity={0.85} onPress={() => handleSend(ICEBREAKER)}>
               <BrutalBox
-                backgroundColor={colors.primaryPink}
+                backgroundColor={colors.accentYellow}
                 borderColor={colors.borderBlack}
                 borderWidth={2.2}
-                borderRadius={18}
+                borderRadius={16}
                 shadowOffset={{ x: 3, y: 3 }}
-                style={styles.outgoingBubbleBox}
-                contentStyle={styles.outgoingBubbleContent}
+                style={styles.promptContainer}
+                contentStyle={styles.promptContent}
               >
-                <Text style={styles.outgoingMsgText}>{msg.text}</Text>
+                <Ionicons name="flash" size={16} color={colors.primaryPink} />
+                <Text style={styles.promptText}>ICEBREAKER: {ICEBREAKER.toUpperCase()}</Text>
               </BrutalBox>
-              <View style={styles.outgoingSubTimeRow}>
-                <Text style={styles.outgoingSubTime}>{msg.time}</Text>
-                <MaterialCommunityIcons name="check-all" size={15} color={colors.primaryPink} />
-              </View>
-            </View>
-          ))}
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
-        {/* 11. BOTTOM INPUT BAR matching ref/inAppChat.png */}
         <View style={styles.inputBarContainer}>
-          {/* Camera Button */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => Alert.alert('📷 Camera', 'Snap an ephemeral safe photo!')}
-          >
-            <BrutalBox
-              backgroundColor="#FFFFFF"
-              borderColor={colors.borderBlack}
-              borderWidth={2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.inputRoundBtn}
-            >
-              <Feather name="camera" size={19} color={colors.textDark} />
-            </BrutalBox>
-          </TouchableOpacity>
-
-          {/* Text Input Pill */}
           <View style={styles.textInputBox}>
             <TextInput
               style={styles.textInput}
@@ -529,35 +488,22 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               onChangeText={setInputText}
               placeholder="Send a p!ng..."
               placeholderTextColor="#6B7280"
-              onSubmitEditing={() => handleSendMessage()}
+              onSubmitEditing={() => handleSend()}
               returnKeyType="send"
+              maxLength={2000}
+              accessibilityLabel="Message"
             />
           </View>
 
-          {/* Voice Mic Button */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => Alert.alert('🎙️ Voice Note', 'Hold to record an Audio P!NG!')}
-          >
-            <BrutalBox
-              backgroundColor="#FFFFFF"
-              borderColor={colors.borderBlack}
-              borderWidth={2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.inputRoundBtn}
-            >
-              <Feather name="mic" size={19} color={colors.textDark} />
-            </BrutalBox>
-          </TouchableOpacity>
-
-          {/* Send / Lightning Button */}
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => handleSendMessage()}
+            onPress={() => handleSend()}
+            disabled={!inputText.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
           >
             <BrutalBox
-              backgroundColor={colors.accentYellow}
+              backgroundColor={inputText.trim() ? colors.accentYellow : '#E5E7EB'}
               borderColor={colors.borderBlack}
               borderWidth={2.2}
               borderRadius={999}
@@ -569,11 +515,136 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal transparent visible={menuOpen} animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={() => setMenuOpen(false)}>
+          <BrutalBox
+            backgroundColor="#FFFFFF"
+            borderColor={colors.borderBlack}
+            borderWidth={2.6}
+            borderRadius={22}
+            shadowOffset={{ x: 4, y: 4 }}
+            style={styles.sheetCard}
+            contentStyle={styles.sheetContent}
+          >
+            <Text style={styles.sheetTitle}>{partnerName.toUpperCase()}</Text>
+            <TouchableOpacity
+              style={styles.sheetRow}
+              onPress={() => {
+                setMenuOpen(false);
+                setReportOpen(true);
+              }}
+              accessibilityRole="button"
+            >
+              <Feather name="flag" size={18} color={colors.textDark} />
+              <Text style={styles.sheetRowText}>Report</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.sheetRow} onPress={handleBlock} accessibilityRole="button">
+              <Feather name="slash" size={18} color={colors.errorRed} />
+              <Text style={[styles.sheetRowText, { color: colors.errorRed }]}>Block</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.sheetRow} onPress={handleUnmatch} accessibilityRole="button">
+              <Feather name="user-x" size={18} color={colors.textDark} />
+              <Text style={styles.sheetRowText}>Unmatch</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.sheetRow} onPress={() => setMenuOpen(false)} accessibilityRole="button">
+              <Feather name="x" size={18} color={colors.textMuted} />
+              <Text style={[styles.sheetRowText, { color: colors.textMuted }]}>Cancel</Text>
+            </TouchableOpacity>
+          </BrutalBox>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal transparent visible={reportOpen} animationType="fade" onRequestClose={() => setReportOpen(false)}>
+        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={() => setReportOpen(false)}>
+          <BrutalBox
+            backgroundColor="#FFFFFF"
+            borderColor={colors.borderBlack}
+            borderWidth={2.6}
+            borderRadius={22}
+            shadowOffset={{ x: 4, y: 4 }}
+            style={styles.sheetCard}
+            contentStyle={styles.sheetContent}
+          >
+            <Text style={styles.sheetTitle}>WHY ARE YOU REPORTING?</Text>
+            {REPORT_REASONS.map((r) => (
+              <TouchableOpacity
+                key={r.value}
+                style={styles.sheetRow}
+                onPress={() => handleReport(r.value)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.sheetRowText}>{r.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </BrutalBox>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  centerSpinner: {
+    marginVertical: 24,
+  },
+  chatNotice: {
+    fontSize: 13.5,
+    fontFamily: typography.bodyBold,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginVertical: 18,
+    paddingHorizontal: 20,
+  },
+  loadMore: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  loadMoreText: {
+    fontSize: 11.5,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.primaryPink,
+    letterSpacing: 0.5,
+  },
+  pendingBubble: {
+    opacity: 0.65,
+  },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  sheetCard: {
+    width: '100%',
+    maxWidth: 340,
+  },
+  sheetContent: {
+    padding: 8,
+  },
+  sheetTitle: {
+    fontSize: 13,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textMuted,
+    letterSpacing: 0.6,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 6,
+  },
+  sheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  sheetRowText: {
+    fontSize: 16,
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#FAF7F2',
