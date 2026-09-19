@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
+  Alert,
   Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -17,7 +18,12 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
-import { UserAccount, authDb } from '../services/authDb';
+import { UserAccount } from '../types/user';
+import { NeoSlider } from '../components/NeoSlider';
+import { fetchPreferences, savePreferences, updateProfile } from '../services/profile';
+import { errorMessage } from '../services/errors';
+import { toDbGender, toGenderLabel } from '../lib/gender';
+import type { Enums } from '../types/database';
 
 interface OnboardingPreferencesScreenProps {
   user: UserAccount;
@@ -33,6 +39,21 @@ const LOOKING_FOR_OPTIONS = [
   'FIGURING IT OUT',
 ] as const;
 
+const INTENTION_BY_LABEL: Record<(typeof LOOKING_FOR_OPTIONS)[number], Enums<'intention_t'>> = {
+  '★ LONG-TERM': 'long_term',
+  'SHORT-TERM FUN': 'short_term',
+  'NEW FRIENDS': 'friends',
+  'FIGURING IT OUT': 'figuring_out',
+};
+const LABEL_BY_INTENTION = Object.fromEntries(
+  Object.entries(INTENTION_BY_LABEL).map(([label, value]) => [value, label])
+) as Record<Enums<'intention_t'>, (typeof LOOKING_FOR_OPTIONS)[number]>;
+
+const AGE_SLIDER_MIN = 18;
+const AGE_SLIDER_MAX = 60; // 60 means "60+" and is stored as 99
+const DISTANCE_MIN = 2;
+const DISTANCE_MAX = 100;
+
 export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenProps> = ({
   user,
   onBack,
@@ -40,10 +61,28 @@ export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenPr
 }) => {
   const [selectedInterested, setSelectedInterested] = useState<string[]>(['WOMAN']);
   const [selectedLookingFor, setSelectedLookingFor] = useState<string>('★ LONG-TERM');
-  const [minAge] = useState<number>(24);
-  const [maxAge] = useState<number>(34);
-  const [distanceKm] = useState<number>(25);
+  const [minAge, setMinAge] = useState<number>(24);
+  const [maxAge, setMaxAge] = useState<number>(34);
+  const [distanceKm, setDistanceKm] = useState<number>(25);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // Resume: show what was saved earlier (a brand-new profile has no genders picked yet).
+  useEffect(() => {
+    let cancelled = false;
+    fetchPreferences(user.id)
+      .then((prefs) => {
+        if (cancelled || prefs.interested_in.length === 0) return;
+        setSelectedInterested(prefs.interested_in.map(toGenderLabel));
+        setSelectedLookingFor(LABEL_BY_INTENTION[prefs.intention]);
+        setMinAge(Math.max(AGE_SLIDER_MIN, prefs.min_age));
+        setMaxAge(Math.min(AGE_SLIDER_MAX, prefs.max_age));
+        setDistanceKm(Math.min(DISTANCE_MAX, Math.max(DISTANCE_MIN, prefs.max_distance_km)));
+      })
+      .catch(() => undefined); // keep the defaults if the read fails
+    return () => {
+      cancelled = true;
+    };
+  }, [user.id]);
 
   const toggleInterested = (item: string) => {
     if (selectedInterested.includes(item)) {
@@ -58,10 +97,16 @@ export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenPr
   const handleNext = async () => {
     setIsSaving(true);
     try {
-      const updated = await authDb.updateUserProfile(user.id, {
-        // Save preferences
+      await savePreferences(user.id, {
+        interested_in: selectedInterested.map(toDbGender),
+        intention: INTENTION_BY_LABEL[selectedLookingFor as keyof typeof INTENTION_BY_LABEL],
+        min_age: minAge,
+        max_age: maxAge >= AGE_SLIDER_MAX ? 99 : maxAge,
+        max_distance_km: distanceKm,
       });
-      onNext(updated || user);
+      onNext(await updateProfile(user, { onboarding_step: 5 }));
+    } catch (e) {
+      Alert.alert('Could not save', errorMessage(e));
     } finally {
       setIsSaving(false);
     }
@@ -261,28 +306,28 @@ export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenPr
                   <Text style={styles.sliderLabelTitle}>TARGET AGES</Text>
                   <View style={styles.purpleRangeBadge}>
                     <Text style={styles.purpleRangeText}>
-                      {minAge} — {maxAge} YRS
+                      {minAge} — {maxAge >= AGE_SLIDER_MAX ? '60+' : maxAge} YRS
                     </Text>
                   </View>
                 </View>
 
-                <View style={styles.trackContainer}>
-                  <View style={styles.sliderTrackBg}>
-                    <View
-                      style={[
-                        styles.sliderTrackFillPink,
-                        {
-                          left: `${((minAge - 18) / 42) * 100}%`,
-                          right: `${100 - ((maxAge - 18) / 42) * 100}%`,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
+                <NeoSlider
+                  min={AGE_SLIDER_MIN}
+                  max={AGE_SLIDER_MAX}
+                  values={[minAge, maxAge]}
+                  minGap={2}
+                  onChange={(v) => {
+                    if (v.length === 2) {
+                      setMinAge(v[0]);
+                      setMaxAge(v[1]);
+                    }
+                  }}
+                  accessibilityLabel="Age"
+                />
 
                 <View style={styles.sliderFooterRow}>
                   <Text style={styles.sliderLimitText}>18</Text>
-                  <Text style={styles.sliderSubLabel}>ADJUSTABLE IN SETTINGS</Text>
+                  <Text style={styles.sliderSubLabel}>DRAG TO ADJUST</Text>
                   <Text style={styles.sliderLimitText}>60+</Text>
                 </View>
               </BrutalBox>
@@ -313,16 +358,14 @@ export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenPr
                   </View>
                 </View>
 
-                <View style={styles.trackContainer}>
-                  <View style={styles.sliderTrackBg}>
-                    <View
-                      style={[
-                        styles.sliderTrackFillYellow,
-                        { width: `${(distanceKm / 100) * 100}%` },
-                      ]}
-                    />
-                  </View>
-                </View>
+                <NeoSlider
+                  min={DISTANCE_MIN}
+                  max={DISTANCE_MAX}
+                  values={[distanceKm]}
+                  fillColor={colors.accentYellow}
+                  onChange={(v) => setDistanceKm(v[0])}
+                  accessibilityLabel="Maximum distance in kilometres"
+                />
 
                 <View style={styles.sliderFooterRow}>
                   <Text style={styles.sliderLimitText}>2 KM</Text>

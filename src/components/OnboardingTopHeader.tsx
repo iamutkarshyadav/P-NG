@@ -4,7 +4,7 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { LAYOUT } from '../theme/responsive';
 import { BrutalBox } from './BrutalBox';
-import { UserAccount } from '../services/authDb';
+import { UserAccount } from '../types/user';
 
 interface OnboardingTopHeaderProps {
   user?: UserAccount;

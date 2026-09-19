@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,6 +15,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Anton_400Regular } from '@expo-google-fonts/anton';
 import {
   PlusJakartaSans_400Regular,
@@ -27,11 +28,22 @@ import {
 import { colors } from './src/theme/colors';
 import { typography } from './src/theme/typography';
 import { LAYOUT } from './src/theme/responsive';
+import { env } from './src/lib/env';
 import { DotGridBackground } from './src/components/DotGridBackground';
 import { BrutalBox } from './src/components/BrutalBox';
 import { PingLogoHeader } from './src/components/PingLogoHeader';
 import { GoogleLogo } from './src/components/GoogleLogo';
-import { authDb, UserAccount, ALEX_DEMO_ACCOUNT, SAM_DEMO_ACCOUNT, GOOGLE_DEMO_ACCOUNT } from './src/services/authDb';
+import { SessionProvider, useSession } from './src/providers/SessionProvider';
+import {
+  DEV_ALEX,
+  DEV_SAM,
+  requestPasswordReset,
+  resetDevSam,
+  signInWithEmail,
+  signInWithGoogle,
+  signOut,
+  signUpWithEmail,
+} from './src/services/auth';
 import { AppHomeScreen } from './src/screens/AppHomeScreen';
 import { OnboardingAgeScreen } from './src/screens/OnboardingAgeScreen';
 import { OnboardingNameScreen } from './src/screens/OnboardingNameScreen';
@@ -41,8 +53,23 @@ import { OnboardingPhotosScreen } from './src/screens/OnboardingPhotosScreen';
 import { OnboardingBioScreen } from './src/screens/OnboardingBioScreen';
 import { OnboardingTagsScreen } from './src/screens/OnboardingTagsScreen';
 import { OnboardingLocationScreen } from './src/screens/OnboardingLocationScreen';
+import type { UserAccount } from './src/types/user';
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false } },
+});
 
 export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SessionProvider>
+        <AppShell />
+      </SessionProvider>
+    </QueryClientProvider>
+  );
+}
+
+function AppShell() {
   const [fontsLoaded] = useFonts({
     Anton_400Regular,
     PlusJakartaSans_400Regular,
@@ -52,105 +79,88 @@ export default function App() {
     PlusJakartaSans_800ExtraBold,
   });
 
-  const [loading, setLoading] = useState(true);
-  const [loggedInUser, setLoggedInUser] = useState<UserAccount | null>(null);
+  const { status, user, error: sessionError, setUser, retry } = useSession();
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
-  const [email, setEmail] = useState(ALEX_DEMO_ACCOUNT.email);
-  const [password, setPassword] = useState(ALEX_DEMO_ACCOUNT.password);
+  const [email, setEmail] = useState<string>(env.enableDevLogins ? DEV_ALEX.email : '');
+  const [password, setPassword] = useState<string>(env.enableDevLogins ? DEV_ALEX.password : '');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8>(1);
+  // The step shown while onboarding. null = resume from the step saved on the profile.
+  const [stepOverride, setStepOverride] = useState<number | null>(null);
+  const [replaying, setReplaying] = useState(false);
 
-  // Initialize DB and check active session
+  // Reset local flow state whenever the session ends.
   useEffect(() => {
-    async function init() {
-      await authDb.initDb();
-      const session = await authDb.getActiveSession();
-      if (session) {
-        setLoggedInUser(session);
-      }
-      setLoading(false);
+    if (status === 'signedOut') {
+      setStepOverride(null);
+      setReplaying(false);
     }
-    init();
-  }, []);
+  }, [status]);
 
   /**
-   * Development Quick Fill Handler:
-   * - ALEX: switches to 'login' route, pre-fills Alex credentials, ensures Alex exists in DB
-   * - SAM: switches to 'signup' route, pre-fills Sam credentials, purges Sam from DB so it's always a new account
+   * Dev quick fill (only rendered when env.enableDevLogins):
+   * - ALEX: login route with the seeded account's credentials
+   * - SAM: signup route; Sam is deleted first so signing up is always a brand-new account
    */
-  const handleQuickFill = async (demo: 'alex' | 'sam' | 'google') => {
-    if (demo === 'google') {
-      setActiveTab('login');
-      setEmail(GOOGLE_DEMO_ACCOUNT.email);
-      setPassword('google_sso_verified');
-      return;
-    }
-
-    await authDb.prepareDemoMode(demo);
-
+  const handleQuickFill = async (demo: 'alex' | 'sam') => {
     if (demo === 'alex') {
       setActiveTab('login');
-      setEmail(ALEX_DEMO_ACCOUNT.email);
-      setPassword(ALEX_DEMO_ACCOUNT.password);
-    } else {
-      setActiveTab('signup');
-      setEmail(SAM_DEMO_ACCOUNT.email);
-      setPassword(SAM_DEMO_ACCOUNT.password);
+      setEmail(DEV_ALEX.email);
+      setPassword(DEV_ALEX.password);
+      return;
     }
+    await resetDevSam();
+    setActiveTab('signup');
+    setEmail(DEV_SAM.email);
+    setPassword(DEV_SAM.password);
   };
 
   const handleGoogleSignIn = async () => {
     setIsSubmitting(true);
     try {
-      const result = await authDb.signInWithGoogle();
-      if (result.success && result.user) {
-        setLoggedInUser(result.user);
-      } else {
-        Alert.alert('Google Sign-In Failed', result.error || 'Could not sign in with Google.');
-      }
+      const result = await signInWithGoogle();
+      if (!result.ok) Alert.alert('Google Sign-In', result.error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Required Fields', 'Please enter both your email and password.');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      if (activeTab === 'login') {
-        const result = await authDb.logIn(email, password);
-        if (result.success && result.user) {
-          setLoggedInUser(result.user);
-        } else {
-          Alert.alert('Login Failed', result.error || 'Invalid credentials.');
-        }
-      } else {
-        const result = await authDb.signUp(email, password);
-        if (result.success && result.user) {
-          setLoggedInUser(result.user);
-        } else {
-          Alert.alert('Sign Up Failed', result.error || 'Could not create account.');
-        }
+      const result =
+        activeTab === 'login'
+          ? await signInWithEmail(email, password)
+          : await signUpWithEmail(email, password);
+      if (!result.ok) {
+        Alert.alert(activeTab === 'login' ? 'Login Failed' : 'Sign Up Failed', result.error);
+      } else if (result.needsEmailConfirmation) {
+        Alert.alert('Check your email', 'We sent you a confirmation link. Tap it, then log in.');
+        setActiveTab('login');
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleLogout = async () => {
-    await authDb.logOut();
-    setLoggedInUser(null);
-    setOnboardingStep(1);
-    // Reset to Alex on auth screen
-    handleQuickFill('alex');
+  const handleForgotPassword = async () => {
+    if (env.enableDevLogins) {
+      Alert.alert('Dev accounts', `Alex and Sam use the password: ${DEV_ALEX.password}`);
+      return;
+    }
+    const result = await requestPasswordReset(email);
+    Alert.alert(
+      result.ok ? 'Check your email' : 'Reset password',
+      result.ok ? 'If that address has an account, a reset link is on its way.' : result.error
+    );
   };
 
-  if (!fontsLoaded || loading) {
+  const handleLogout = async () => {
+    await signOut();
+    if (env.enableDevLogins) await handleQuickFill('alex');
+  };
+
+  if (!fontsLoaded || status === 'loading') {
     return (
       <View style={[styles.safeArea, styles.loadingCenter]}>
         <ActivityIndicator size="large" color={colors.primaryPink} />
@@ -158,129 +168,104 @@ export default function App() {
     );
   }
 
-  // If user is authenticated
-  if (loggedInUser) {
-    // When user signups for the first time (or onboarding is incomplete), chain through Steps 1 to 7
-    if (!loggedInUser.hasCompletedOnboarding) {
-      if (onboardingStep === 1) {
-        return (
-          <OnboardingAgeScreen
-            user={loggedInUser}
-            onBack={handleLogout}
-            onComplete={(updatedUser) => {
-              setLoggedInUser(updatedUser);
-              setOnboardingStep(2);
-            }}
-          />
-        );
-      }
+  if (status === 'error') {
+    return (
+      <View style={[styles.safeArea, styles.loadingCenter, styles.errorScreen]}>
+        <Text style={styles.errorTitle}>Can&apos;t load your profile</Text>
+        <Text style={styles.errorBody}>{sessionError}</Text>
+        <BrutalBox
+          backgroundColor={colors.accentYellow}
+          borderRadius={16}
+          onPress={retry}
+          contentStyle={styles.errorButton}
+        >
+          <Text style={styles.errorButtonText}>TRY AGAIN</Text>
+        </BrutalBox>
+        <TouchableOpacity onPress={handleLogout}>
+          <Text style={styles.forgotPasswordText}>Sign out</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
-      if (onboardingStep === 2) {
-        return (
-          <OnboardingNameScreen
-            user={loggedInUser}
-            onBack={() => setOnboardingStep(1)}
-            onNext={(updatedUser) => {
-              setLoggedInUser(updatedUser);
-              setOnboardingStep(3);
-            }}
-          />
-        );
-      }
+  if (user) {
+    if (!user.hasCompletedOnboarding || replaying) {
+      const step = stepOverride ?? user.onboardingStep;
+      const advance = (to: number) => (updated: UserAccount) => {
+        setUser(updated);
+        setStepOverride(to);
+      };
 
-      if (onboardingStep === 3) {
-        return (
-          <OnboardingIdentityScreen
-            user={loggedInUser}
-            onBack={() => setOnboardingStep(2)}
-            onComplete={(updatedUser) => {
-              setLoggedInUser(updatedUser);
-              setOnboardingStep(4);
-            }}
-          />
-        );
-      }
-
-      if (onboardingStep === 4) {
-        return (
-          <OnboardingPreferencesScreen
-            user={loggedInUser}
-            onBack={() => setOnboardingStep(3)}
-            onNext={(updatedUser) => {
-              setLoggedInUser(updatedUser);
-              setOnboardingStep(5);
-            }}
-          />
-        );
-      }
-
-      if (onboardingStep === 5) {
-        return (
-          <OnboardingPhotosScreen
-            user={loggedInUser}
-            onBack={() => setOnboardingStep(4)}
-            onNext={(updatedUser) => {
-              setLoggedInUser(updatedUser);
-              setOnboardingStep(6);
-            }}
-          />
-        );
-      }
-
-      if (onboardingStep === 6) {
-        return (
-          <OnboardingBioScreen
-            user={loggedInUser}
-            onBack={() => setOnboardingStep(5)}
-            onNext={(updatedUser) => {
-              setLoggedInUser(updatedUser);
-              setOnboardingStep(7);
-            }}
-          />
-        );
-      }
-
-      if (onboardingStep === 7) {
-        return (
-          <OnboardingTagsScreen
-            user={loggedInUser}
-            onBack={() => setOnboardingStep(6)}
-            onNext={(updatedUser) => {
-              setLoggedInUser(updatedUser);
-              setOnboardingStep(8);
-            }}
-          />
-        );
-      }
-
-      if (onboardingStep === 8) {
-        return (
-          <OnboardingLocationScreen
-            user={loggedInUser}
-            onBack={() => setOnboardingStep(7)}
-            onComplete={(updatedUser) => {
-              setLoggedInUser(updatedUser);
-            }}
-          />
-        );
+      switch (step) {
+        case 1:
+          return <OnboardingAgeScreen user={user} onBack={handleLogout} onComplete={advance(2)} />;
+        case 2:
+          return (
+            <OnboardingNameScreen user={user} onBack={() => setStepOverride(1)} onNext={advance(3)} />
+          );
+        case 3:
+          return (
+            <OnboardingIdentityScreen
+              user={user}
+              onBack={() => setStepOverride(2)}
+              onComplete={advance(4)}
+            />
+          );
+        case 4:
+          return (
+            <OnboardingPreferencesScreen
+              user={user}
+              onBack={() => setStepOverride(3)}
+              onNext={advance(5)}
+            />
+          );
+        case 5:
+          return (
+            <OnboardingPhotosScreen user={user} onBack={() => setStepOverride(4)} onNext={advance(6)} />
+          );
+        case 6:
+          return (
+            <OnboardingBioScreen user={user} onBack={() => setStepOverride(5)} onNext={advance(7)} />
+          );
+        case 7:
+          return (
+            <OnboardingTagsScreen user={user} onBack={() => setStepOverride(6)} onNext={advance(8)} />
+          );
+        default:
+          return (
+            <OnboardingLocationScreen
+              user={user}
+              onBack={() => setStepOverride(7)}
+              onComplete={(updated) => {
+                setUser(updated);
+                setReplaying(false);
+                setStepOverride(null);
+              }}
+            />
+          );
       }
     }
 
     return (
       <AppHomeScreen
-        user={loggedInUser}
+        user={user}
         onLogout={handleLogout}
-        onSwitchToDemo={async (demo) => {
-          await handleLogout();
-          await handleQuickFill(demo);
-        }}
-        onReplayOnboarding={() => {
-          setOnboardingStep(1);
-          setLoggedInUser({
-            ...loggedInUser,
-            hasCompletedOnboarding: false,
-          });
-        }}
+        onSwitchToDemo={
+          env.enableDevLogins
+            ? async (demo) => {
+                await signOut();
+                await handleQuickFill(demo);
+              }
+            : undefined
+        }
+        onReplayOnboarding={
+          env.enableDevLogins
+            ? () => {
+                setStepOverride(1);
+                setReplaying(true);
+              }
+            : undefined
+        }
       />
     );
   }
@@ -413,7 +398,7 @@ export default function App() {
                       style={styles.textInput}
                       value={email}
                       onChangeText={setEmail}
-                      placeholder={activeTab === 'login' ? 'alex@ping.app' : 'your@email.com'}
+                      placeholder={'you@example.com'}
                       placeholderTextColor="#888"
                       autoCapitalize="none"
                       keyboardType="email-address"
@@ -489,12 +474,7 @@ export default function App() {
                 {/* Forgot Password Link */}
                 <TouchableOpacity
                   activeOpacity={0.7}
-                  onPress={() =>
-                    Alert.alert(
-                      'Demo Account Password',
-                      'All demo accounts (Alex & Sam) use the password: password123'
-                    )
-                  }
+                  onPress={handleForgotPassword}
                   style={styles.forgotPasswordButton}
                 >
                   <Text style={styles.forgotPasswordText}>Forgot password?</Text>
@@ -554,63 +534,46 @@ export default function App() {
                 <Text style={styles.valuePropText}> forever!</Text>
               </BrutalBox>
 
-              {/* 7. Bottom Quick Test Fill Bar */}
-              <View style={styles.quickFillWrapper}>
-                <View style={styles.quickFillDottedBox}>
-                  <Text style={styles.quickFillLabel}>QUICK TEST FILL:</Text>
+              {/* 7. Dev-only quick test fill (env.enableDevLogins) */}
+              {env.enableDevLogins && (
+                <View style={styles.quickFillWrapper}>
+                  <View style={styles.quickFillDottedBox}>
+                    <Text style={styles.quickFillLabel}>QUICK TEST FILL:</Text>
+                  </View>
+
+                  <BrutalBox
+                    backgroundColor={colors.cardWhite}
+                    borderColor={colors.borderBlack}
+                    borderWidth={1.8}
+                    borderRadius={999}
+                    shadowOffset={{ x: 2, y: 2 }}
+                    onPress={() => handleQuickFill('alex')}
+                    contentStyle={[
+                      styles.quickFillPill,
+                      activeTab === 'login' && email.includes('alex') && styles.activeQuickPill,
+                    ]}
+                  >
+                    <Ionicons name="flash" size={13} color="#E0A100" />
+                    <Text style={styles.quickFillPillText}>ALEX</Text>
+                  </BrutalBox>
+
+                  <BrutalBox
+                    backgroundColor={colors.cardWhite}
+                    borderColor={colors.borderBlack}
+                    borderWidth={1.8}
+                    borderRadius={999}
+                    shadowOffset={{ x: 2, y: 2 }}
+                    onPress={() => handleQuickFill('sam')}
+                    contentStyle={[
+                      styles.quickFillPill,
+                      activeTab === 'signup' && email.includes('sam') && styles.activeQuickPill,
+                    ]}
+                  >
+                    <Ionicons name="heart" size={13} color={colors.primaryPink} />
+                    <Text style={styles.quickFillPillText}>SAM</Text>
+                  </BrutalBox>
                 </View>
-
-                {/* ALEX (Login Route) */}
-                <BrutalBox
-                  backgroundColor={colors.cardWhite}
-                  borderColor={colors.borderBlack}
-                  borderWidth={1.8}
-                  borderRadius={999}
-                  shadowOffset={{ x: 2, y: 2 }}
-                  onPress={() => handleQuickFill('alex')}
-                  contentStyle={[
-                    styles.quickFillPill,
-                    activeTab === 'login' && email.includes('alex') && !email.includes('google') && styles.activeQuickPill,
-                  ]}
-                >
-                  <Ionicons name="flash" size={13} color="#E0A100" />
-                  <Text style={styles.quickFillPillText}>ALEX</Text>
-                </BrutalBox>
-
-                {/* SAM (Sign Up Route - Always New Account) */}
-                <BrutalBox
-                  backgroundColor={colors.cardWhite}
-                  borderColor={colors.borderBlack}
-                  borderWidth={1.8}
-                  borderRadius={999}
-                  shadowOffset={{ x: 2, y: 2 }}
-                  onPress={() => handleQuickFill('sam')}
-                  contentStyle={[
-                    styles.quickFillPill,
-                    activeTab === 'signup' && email.includes('sam') && styles.activeQuickPill,
-                  ]}
-                >
-                  <Ionicons name="heart" size={13} color={colors.primaryPink} />
-                  <Text style={styles.quickFillPillText}>SAM</Text>
-                </BrutalBox>
-
-                {/* GOOGLE (One-Tap Google SSO Demo) */}
-                <BrutalBox
-                  backgroundColor={colors.cardWhite}
-                  borderColor={colors.borderBlack}
-                  borderWidth={1.8}
-                  borderRadius={999}
-                  shadowOffset={{ x: 2, y: 2 }}
-                  onPress={handleGoogleSignIn}
-                  contentStyle={[
-                    styles.quickFillPill,
-                    email.includes('google') && styles.activeQuickPill,
-                  ]}
-                >
-                  <GoogleLogo size={13} />
-                  <Text style={styles.quickFillPillText}>GOOGLE</Text>
-                </BrutalBox>
-              </View>
+              )}
 
               {/* 8. Trust Footnote */}
               <Text style={styles.trustFootnote}>
@@ -632,6 +595,32 @@ const styles = StyleSheet.create({
   loadingCenter: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  errorScreen: {
+    padding: 24,
+    gap: 16,
+  },
+  errorTitle: {
+    fontSize: 22,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+    textAlign: 'center',
+  },
+  errorBody: {
+    fontSize: 14,
+    fontFamily: typography.bodyMedium,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  errorButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+  },
+  errorButtonText: {
+    fontSize: 16,
+    fontFamily: typography.headline,
+    color: colors.textDark,
   },
   keyboardView: {
     flex: 1,

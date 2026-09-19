@@ -363,6 +363,8 @@ export type Database = {
       can_message: { Args: { m: string }; Returns: boolean };
       can_view_photos: { Args: { p_owner: string }; Returns: boolean };
       complete_onboarding: { Args: never; Returns: undefined };
+      // Dev-only helper (supabase/seed-dev.sql); absent on production projects.
+      dev_move_seeds_near_me: { Args: never; Returns: undefined };
       discover_feed: {
         Args: { p_limit?: number };
         Returns: {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -20,7 +20,10 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
-import { UserAccount, authDb } from '../services/authDb';
+import { UserAccount } from '../types/user';
+import { updateProfile } from '../services/profile';
+import { errorMessage } from '../services/errors';
+import { fetchPromptSuggestions } from '../services/tags';
 
 interface OnboardingBioScreenProps {
   user: UserAccount;
@@ -28,11 +31,9 @@ interface OnboardingBioScreenProps {
   onNext: (updatedUser: UserAccount) => void;
 }
 
-const PROMPT_SUGGESTIONS = [
+const FALLBACK_PROMPTS = [
   '☕ Coffee, code & late night concerts.',
   '🍕 The secret to winning me over is good food.',
-  '🎧 Song on heavy repeat: synthwave playlists.',
-  '✈️ Most spontaneous road trip ever taken.',
 ];
 
 export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
@@ -40,10 +41,21 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
   onBack,
   onNext,
 }) => {
-  const [bioText, setBioText] = useState<string>(
-    user.bio || 'Coffee, code & concerts. Looking for real connections!'
-  );
+  const [bioText, setBioText] = useState<string>(user.bio ?? '');
   const [isSaving, setIsSaving] = useState(false);
+  const [prompts, setPrompts] = useState<string[]>(FALLBACK_PROMPTS);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPromptSuggestions()
+      .then((list) => {
+        if (!cancelled && list.length > 0) setPrompts(list);
+      })
+      .catch(() => undefined); // suggestions are optional; keep the fallbacks
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSelectPrompt = (prompt: string) => {
     setBioText(prompt);
@@ -57,12 +69,9 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
 
     setIsSaving(true);
     try {
-      const updated = await authDb.updateUserProfile(user.id, {
-        bio: bioText.trim(),
-      });
-      onNext(updated || user);
-    } catch {
-      Alert.alert('Error', 'Could not save bio.');
+      onNext(await updateProfile(user, { bio: bioText.trim(), onboarding_step: 7 }));
+    } catch (e) {
+      Alert.alert('Could not save', errorMessage(e));
     } finally {
       setIsSaving(false);
     }
@@ -158,7 +167,7 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
             <View style={styles.promptStartersWrapper}>
               <Text style={styles.startersHeader}>💡 QUICK STARTERS (TAP TO USE):</Text>
               <View style={styles.startersList}>
-                {PROMPT_SUGGESTIONS.map((item, index) => (
+                {prompts.map((item, index) => (
                   <TouchableOpacity
                     key={index}
                     activeOpacity={0.8}

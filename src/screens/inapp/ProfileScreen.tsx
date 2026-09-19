@@ -19,7 +19,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
-import { UserAccount } from '../../services/authDb';
+import { UserAccount } from '../../types/user';
 import { AccountSecurityScreen } from './AccountSecurityScreen';
 import { PreferencesScreen } from './PreferencesScreen';
 import { SafetyCenterScreen } from './SafetyCenterScreen';
@@ -29,7 +29,7 @@ import { ProfilePreviewScreen } from './ProfilePreviewScreen';
 interface ProfileScreenProps {
   user: UserAccount;
   onLogout: () => void;
-  onSwitchToDemo?: (demo: 'alex' | 'sam' | 'google') => void;
+  onSwitchToDemo?: (demo: 'alex' | 'sam') => void;
   onReplayOnboarding?: () => void;
   onEditProfile?: () => void;
   onSubScreenChange?: (isSubScreen: boolean) => void;
@@ -510,7 +510,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </BrutalBox>
         </TouchableOpacity>
 
-        {/* 7. QUICK DEMO ACCOUNTS SWITCHER */}
+        {/* 7. QUICK DEMO ACCOUNTS SWITCHER (dev builds only) */}
+        {onSwitchToDemo && (
         <View style={styles.demoAccountsContainer}>
           <BrutalBox
             backgroundColor={colors.cardWhite}
@@ -532,7 +533,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={styles.demoButtonsRow}>
               <TouchableOpacity
                 activeOpacity={0.8}
-                onPress={() => onSwitchToDemo ? onSwitchToDemo('alex') : onLogout()}
+                onPress={() => onSwitchToDemo?.('alex')}
                 style={styles.demoBtnItem}
               >
                 <BrutalBox
@@ -553,7 +554,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
               <TouchableOpacity
                 activeOpacity={0.8}
-                onPress={() => onSwitchToDemo ? onSwitchToDemo('sam') : onLogout()}
+                onPress={() => onSwitchToDemo?.('sam')}
                 style={styles.demoBtnItem}
               >
                 <BrutalBox
@@ -574,29 +575,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 </BrutalBox>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => onSwitchToDemo ? onSwitchToDemo('google') : onLogout()}
-                style={styles.demoBtnItem}
-              >
-                <BrutalBox
-                  backgroundColor={user.email.includes('gmail') ? '#C7D2FE' : '#FAF7F2'}
-                  borderColor={colors.borderBlack}
-                  borderWidth={2}
-                  borderRadius={12}
-                  shadowOffset={{ x: 2, y: 2 }}
-                  contentStyle={styles.demoBtnItemContent}
-                >
-                  <Text style={styles.demoBtnItemEmoji}>🌐</Text>
-                  <Text style={styles.demoBtnItemLabel}>GOOGLE</Text>
-                  {user.email.includes('gmail') && (
-                    <View style={styles.currentActiveDot} />
-                  )}
-                </BrutalBox>
-              </TouchableOpacity>
             </View>
           </BrutalBox>
         </View>
+        )}
 
         {/* Developer Replay Mode for Quick Access */}
         {onReplayOnboarding && (

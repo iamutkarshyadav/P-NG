@@ -23,7 +23,7 @@ import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
 import { DotGridBackground } from '../../components/DotGridBackground';
-import { UserAccount } from '../../services/authDb';
+import { UserAccount } from '../../types/user';
 
 interface ChatScreenProps {
   partnerName?: string;

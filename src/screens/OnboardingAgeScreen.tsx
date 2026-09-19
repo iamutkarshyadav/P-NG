@@ -20,7 +20,9 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
-import { UserAccount, authDb } from '../services/authDb';
+import { UserAccount } from '../types/user';
+import { updateProfile } from '../services/profile';
+import { errorMessage } from '../services/errors';
 
 interface OnboardingAgeScreenProps {
   user: UserAccount;
@@ -99,10 +101,13 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
   onComplete,
 }) => {
   // Committed birthdate
-  const [selectedYear, setSelectedYear] = useState<number>(2000);
-  const [selectedMonth, setSelectedMonth] = useState<number>(5);
-  const [selectedDay, setSelectedDay] = useState<number>(14);
-  const [yearInputText, setYearInputText] = useState<string>('2000');
+  const [initialYear, initialMonth, initialDay] = user.birthday
+    ? user.birthday.split('-').map(Number)
+    : [2000, 5, 14];
+  const [selectedYear, setSelectedYear] = useState<number>(initialYear);
+  const [selectedMonth, setSelectedMonth] = useState<number>(initialMonth);
+  const [selectedDay, setSelectedDay] = useState<number>(initialDay);
+  const [yearInputText, setYearInputText] = useState<string>(String(initialYear));
 
   // Confirmation Pop-up Modal State
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
@@ -221,17 +226,9 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
     setShowConfirmModal(false);
     setIsSaving(true);
     try {
-      const updated = await authDb.updateUserProfile(user.id, {
-        birthday: formattedDateStr,
-        age,
-        zodiacSign: zodiac,
-      });
-
-      if (updated) {
-        onComplete(updated);
-      } else {
-        Alert.alert('Error', 'Could not save onboarding profile. Please try again.');
-      }
+      onComplete(await updateProfile(user, { birthday: formattedDateStr, onboarding_step: 2 }));
+    } catch (e) {
+      Alert.alert('Could not save', errorMessage(e));
     } finally {
       setIsSaving(false);
     }

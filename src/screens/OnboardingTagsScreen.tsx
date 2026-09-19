@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -17,7 +17,11 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
-import { UserAccount, authDb } from '../services/authDb';
+import { UserAccount } from '../types/user';
+import { useQuery } from '@tanstack/react-query';
+import { fetchAllTags, fetchMyTagIds, saveMyTags } from '../services/tags';
+import { updateProfile } from '../services/profile';
+import { errorMessage } from '../services/errors';
 
 interface OnboardingTagsScreenProps {
   user: UserAccount;
@@ -35,31 +39,6 @@ interface VibeTag {
   tint?: string;
 }
 
-const ALL_VIBE_TAGS: VibeTag[] = [
-  { id: '1', emoji: '☕', name: 'Flat White Enthusiast', category: 'FOOD', tint: '#FFF' },
-  { id: '2', emoji: '🧗', name: 'Bouldering 6B', category: 'LIFESTYLE', tint: '#FFF' },
-  { id: '3', emoji: '📻', name: 'Analog Vinyl', category: 'MUSIC', tint: '#FFF' },
-  { id: '4', emoji: '🥞', name: 'Matcha Mornings', category: 'FOOD', tint: '#FFF' },
-  { id: '5', emoji: '🌮', name: 'Spicy Tacos & Curry', category: 'FOOD', tint: '#FFF4EB' },
-  { id: '6', emoji: '🍣', name: 'Omakase Nights', category: 'FOOD', tint: '#EEF2FF' },
-  { id: '7', emoji: '💬', name: '2 AM Conversations', category: 'LIFESTYLE', tint: '#FFF' },
-  { id: '8', emoji: '🥐', name: 'Artisanal Bakery', category: 'FOOD', tint: '#FFF1EC' },
-  { id: '9', emoji: '🏃', name: 'Sunrise Miles', category: 'LIFESTYLE', tint: '#FFF' },
-  { id: '10', emoji: '🎹', name: 'Retro Synthwave', category: 'MUSIC', tint: '#F0F5FF' },
-  { id: '11', emoji: '⚡', name: 'Underground Techno', category: 'MUSIC', tint: '#FFF' },
-  { id: '12', emoji: '🎸', name: 'Indie Gigs & Fest', category: 'MUSIC', tint: '#FDF2F8' },
-  { id: '13', emoji: '🎷', name: 'Late Night Jazz', category: 'MUSIC', tint: '#FFF' },
-  { id: '14', emoji: '🏄', name: 'Dawn Patrol Surfing', category: 'LIFESTYLE', tint: '#ECFEFF' },
-  { id: '15', emoji: '🚐', name: 'Unplanned Road Trips', category: 'LIFESTYLE', tint: '#F5F3FF' },
-  { id: '16', emoji: '🛹', name: 'Street Skateboarding', category: 'LIFESTYLE', tint: '#FCE7F3' },
-  { id: '17', emoji: '🏕️', name: 'Wild Mountain Camping', category: 'LIFESTYLE', tint: '#FFF' },
-  { id: '18', emoji: '👾', name: '16-Bit Arcade & SNES', category: 'CREATIVE', tint: '#EEF2FF' },
-  { id: '19', emoji: '📐', name: 'Modernist Design', category: 'CREATIVE', tint: '#FFF' },
-  { id: '20', emoji: '📷', name: '35mm Film Photography', category: 'CREATIVE', tint: '#FFE4E6' },
-  { id: '21', emoji: '⌨️', name: 'Custom Clicky Switches', category: 'CREATIVE', tint: '#F0FDFA' },
-  { id: '22', emoji: '♟️', name: 'Strategy Board Games', category: 'CREATIVE', tint: '#F5F3FF' },
-];
-
 const CATEGORIES: TagCategory[] = ['ALL', 'LIFESTYLE', 'MUSIC', 'CREATIVE', 'FOOD'];
 
 export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
@@ -67,15 +46,37 @@ export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
   onBack,
   onNext,
 }) => {
-  // Pre-seed with the exact tags shown in ref/onBoarding6.png
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(['1', '2', '3']);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchAllTags, staleTime: 10 * 60_000 });
+  const myTagsQuery = useQuery({
+    queryKey: ['my-tags', user.id],
+    queryFn: () => fetchMyTagIds(user.id),
+    staleTime: 0,
+  });
+
+  // Resume: start from the tags already saved for this user.
+  useEffect(() => {
+    if (myTagsQuery.data) setSelectedTagIds(myTagsQuery.data.map(String));
+  }, [myTagsQuery.data]);
+
+  const allTags: VibeTag[] = useMemo(
+    () =>
+      (tagsQuery.data ?? []).map((t) => ({
+        id: String(t.id),
+        name: t.name,
+        emoji: t.emoji,
+        category: t.category.toUpperCase() as TagCategory,
+        tint: t.tint,
+      })),
+    [tagsQuery.data]
+  );
   const [activeCategory, setActiveCategory] = useState<TagCategory>('ALL');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   const filteredTags = useMemo(() => {
-    if (activeCategory === 'ALL') return ALL_VIBE_TAGS;
-    return ALL_VIBE_TAGS.filter((tag) => tag.category === activeCategory);
-  }, [activeCategory]);
+    if (activeCategory === 'ALL') return allTags;
+    return allTags.filter((tag) => tag.category === activeCategory);
+  }, [activeCategory, allTags]);
 
   const handleToggleTag = (tagId: string) => {
     if (selectedTagIds.includes(tagId)) {
@@ -90,14 +91,16 @@ export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
   };
 
   const handleNext = async () => {
+    if (selectedTagIds.length < 1) {
+      Alert.alert('Pick a tag', 'Choose at least one tag so people can see your vibe.');
+      return;
+    }
     setIsSaving(true);
     try {
-      const updated = await authDb.updateUserProfile(user.id, {
-        // sync selected tags
-      });
-      onNext(updated || user);
-    } catch {
-      Alert.alert('Error', 'Unable to save tags.');
+      await saveMyTags(user.id, selectedTagIds.map(Number));
+      onNext(await updateProfile(user, { onboarding_step: 8 }));
+    } catch (e) {
+      Alert.alert('Could not save', errorMessage(e));
     } finally {
       setIsSaving(false);
     }

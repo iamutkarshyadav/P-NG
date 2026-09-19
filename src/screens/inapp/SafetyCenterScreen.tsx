@@ -15,7 +15,7 @@ import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { DotGridBackground } from '../../components/DotGridBackground';
 import { BrutalBox } from '../../components/BrutalBox';
-import { UserAccount } from '../../services/authDb';
+import { UserAccount } from '../../types/user';
 
 interface SafetyCenterScreenProps {
   user: UserAccount;

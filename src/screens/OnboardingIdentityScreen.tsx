@@ -18,7 +18,10 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
-import { UserAccount, authDb } from '../services/authDb';
+import { UserAccount } from '../types/user';
+import { updateProfile } from '../services/profile';
+import { errorMessage } from '../services/errors';
+import { toDbGender, toGenderLabel } from '../lib/gender';
 
 interface OnboardingIdentityScreenProps {
   user: UserAccount;
@@ -35,7 +38,7 @@ export const OnboardingIdentityScreen: React.FC<OnboardingIdentityScreenProps> =
   onComplete,
 }) => {
   const [selectedGender, setSelectedGender] = useState<GenderOption>(
-    (user.gender as GenderOption) || 'WOMAN'
+    user.gender ? (toGenderLabel(user.gender) as GenderOption) : 'WOMAN'
   );
   const [showGenderOnProfile, setShowGenderOnProfile] = useState<boolean>(
     user.showGenderOnProfile ?? true
@@ -45,16 +48,15 @@ export const OnboardingIdentityScreen: React.FC<OnboardingIdentityScreenProps> =
   const handleNext = async () => {
     setIsSaving(true);
     try {
-      const updated = await authDb.updateUserProfile(user.id, {
-        gender: selectedGender,
-        showGenderOnProfile,
-      });
-
-      if (updated) {
-        onComplete(updated);
-      } else {
-        Alert.alert('Error', 'Could not save profile settings. Please try again.');
-      }
+      onComplete(
+        await updateProfile(user, {
+          gender: toDbGender(selectedGender),
+          show_gender: showGenderOnProfile,
+          onboarding_step: 4,
+        })
+      );
+    } catch (e) {
+      Alert.alert('Could not save', errorMessage(e));
     } finally {
       setIsSaving(false);
     }

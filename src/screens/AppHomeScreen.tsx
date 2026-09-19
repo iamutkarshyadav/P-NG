@@ -16,12 +16,12 @@ import { MatchesScreen } from './inapp/MatchesScreen';
 import { ProfileScreen } from './inapp/ProfileScreen';
 import { ChatScreen } from './inapp/ChatScreen';
 import { PreferencesScreen } from './inapp/PreferencesScreen';
-import { UserAccount } from '../services/authDb';
+import { UserAccount } from '../types/user';
 
 interface AppHomeScreenProps {
   user: UserAccount;
   onLogout: () => void;
-  onSwitchToDemo?: (demo: 'alex' | 'sam' | 'google') => void;
+  onSwitchToDemo?: (demo: 'alex' | 'sam') => void;
   onReplayOnboarding?: () => void;
 }
 

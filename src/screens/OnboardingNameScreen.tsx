@@ -19,7 +19,9 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
-import { UserAccount, authDb } from '../services/authDb';
+import { UserAccount } from '../types/user';
+import { updateProfile } from '../services/profile';
+import { errorMessage } from '../services/errors';
 
 interface OnboardingNameScreenProps {
   user: UserAccount;
@@ -32,7 +34,7 @@ export const OnboardingNameScreen: React.FC<OnboardingNameScreenProps> = ({
   onBack,
   onNext,
 }) => {
-  const [name, setName] = useState(user.name || 'Alex');
+  const [name, setName] = useState(user.name);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleNext = async () => {
@@ -49,15 +51,9 @@ export const OnboardingNameScreen: React.FC<OnboardingNameScreenProps> = ({
 
     setIsSaving(true);
     try {
-      const updated = await authDb.updateUserProfile(user.id, {
-        name: trimmed,
-      });
-
-      if (updated) {
-        onNext(updated);
-      } else {
-        Alert.alert('Error', 'Could not update name. Please try again.');
-      }
+      onNext(await updateProfile(user, { display_name: trimmed, onboarding_step: 3 }));
+    } catch (e) {
+      Alert.alert('Could not save', errorMessage(e));
     } finally {
       setIsSaving(false);
     }

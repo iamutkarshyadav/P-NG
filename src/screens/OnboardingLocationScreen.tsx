@@ -26,7 +26,22 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
-import { UserAccount, authDb } from '../services/authDb';
+import { UserAccount } from '../types/user';
+import { shareCurrentLocation } from '../services/location';
+import { completeOnboarding, fetchUser, setLocation } from '../services/profile';
+import { moveSeedsNearMe } from '../services/auth';
+import { errorMessage } from '../services/errors';
+
+// Manual fallback when location permission is denied or unavailable.
+const CITY_FALLBACKS = [
+  { name: 'Bengaluru', lat: 12.9716, lng: 77.5946 },
+  { name: 'Mumbai', lat: 19.076, lng: 72.8777 },
+  { name: 'Delhi', lat: 28.6139, lng: 77.209 },
+  { name: 'San Francisco', lat: 37.7749, lng: -122.4194 },
+  { name: 'New York', lat: 40.7128, lng: -74.006 },
+  { name: 'London', lat: 51.5072, lng: -0.1276 },
+  { name: 'Tokyo', lat: 35.6762, lng: 139.6503 },
+] as const;
 
 interface OnboardingLocationScreenProps {
   user: UserAccount;
@@ -120,35 +135,61 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
   onComplete,
 }) => {
   const [locationAllowed, setLocationAllowed] = useState<boolean>(false);
-  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(user.city ?? null);
+  const [hasLocation, setHasLocation] = useState<boolean>(Boolean(user.city));
+  const [showCities, setShowCities] = useState<boolean>(false);
+  const [isRequesting, setIsRequesting] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  const handleAllowLocation = () => {
-    setLocationAllowed(true);
-    Alert.alert('Location Enabled', 'Distance will be shown in rough buckets. Your exact coordinates are never shared.');
+  const handleAllowLocation = async () => {
+    if (isRequesting) return;
+    setIsRequesting(true);
+    try {
+      const result = await shareCurrentLocation();
+      if (result.ok) {
+        setLocationAllowed(true);
+        setHasLocation(true);
+        if (result.city) setSelectedCity(result.city);
+        Alert.alert(
+          'Location Enabled',
+          'Distance will be shown in rough buckets. Your exact coordinates are never shared.'
+        );
+      } else {
+        setShowCities(true);
+        Alert.alert(
+          result.reason === 'denied' ? 'Location permission needed' : 'Could not get your location',
+          'You can allow location in your device settings, or pick your city below instead.'
+        );
+      }
+    } finally {
+      setIsRequesting(false);
+    }
   };
 
-  const handlePickCity = () => {
-    Alert.alert(
-      'Pick Your City',
-      'Select your metropolitan area:',
-      [
-        { text: 'San Francisco, CA', onPress: () => setSelectedCity('San Francisco') },
-        { text: 'New York, NY', onPress: () => setSelectedCity('New York') },
-        { text: 'London, UK', onPress: () => setSelectedCity('London') },
-        { text: 'Tokyo, JP', onPress: () => setSelectedCity('Tokyo') },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+  const handlePickCity = async (city: (typeof CITY_FALLBACKS)[number]) => {
+    try {
+      await setLocation(city.lat, city.lng, city.name);
+      setSelectedCity(city.name);
+      setHasLocation(true);
+      setLocationAllowed(false);
+    } catch (e) {
+      Alert.alert('Could not save city', errorMessage(e));
+    }
   };
 
   const handleFinish = async () => {
+    if (!hasLocation) {
+      Alert.alert('Location needed', 'Allow location or pick your city so we can show people nearby.');
+      return;
+    }
     setIsSaving(true);
     try {
-      const updated = await authDb.completeOnboarding(user.id);
-      onComplete(updated || user);
-    } catch {
-      Alert.alert('Error', 'Unable to complete setup.');
+      await completeOnboarding();
+      // Dev only: bring the seeded candidates next to this tester (no-op in production builds).
+      await moveSeedsNearMe();
+      onComplete(await fetchUser(user.id, user.email));
+    } catch (e) {
+      Alert.alert('Almost there', errorMessage(e));
     } finally {
       setIsSaving(false);
     }
@@ -301,7 +342,7 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
                 borderWidth={2.4}
                 borderRadius={18}
                 shadowOffset={{ x: 3, y: 3 }}
-                onPress={handleAllowLocation}
+                onPress={() => handleAllowLocation()}
                 style={styles.fullWidth}
                 contentStyle={styles.allowLocationContent}
               >
@@ -322,7 +363,7 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
                 borderWidth={2.2}
                 borderRadius={18}
                 shadowOffset={{ x: 2.8, y: 2.8 }}
-                onPress={handlePickCity}
+                onPress={() => setShowCities((v) => !v)}
                 style={styles.fullWidth}
                 contentStyle={styles.pickCityContent}
               >
@@ -331,6 +372,25 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
                   {selectedCity ? `CITY: ${selectedCity}` : 'PICK MY CITY INSTEAD'}
                 </Text>
               </BrutalBox>
+
+              {showCities && (
+                <View style={styles.cityChips}>
+                  {CITY_FALLBACKS.map((city) => (
+                    <BrutalBox
+                      key={city.name}
+                      backgroundColor={selectedCity === city.name ? colors.accentYellow : colors.cardWhite}
+                      borderColor={colors.borderBlack}
+                      borderWidth={1.8}
+                      borderRadius={999}
+                      shadowOffset={{ x: 2, y: 2 }}
+                      onPress={() => handlePickCity(city)}
+                      contentStyle={styles.cityChipContent}
+                    >
+                      <Text style={styles.cityChipText}>{city.name.toUpperCase()}</Text>
+                    </BrutalBox>
+                  ))}
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -350,6 +410,24 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
 };
 
 const styles = StyleSheet.create({
+  cityChips: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'center',
+    paddingTop: 4,
+  },
+  cityChipContent: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  cityChipText: {
+    fontSize: 11.5,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textDark,
+    letterSpacing: 0.4,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: colors.bgCream,
