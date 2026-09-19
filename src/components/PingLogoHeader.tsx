@@ -3,6 +3,7 @@ import { View, StyleSheet, Text } from 'react-native';
 import Svg, { Text as SvgText, G, Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { typography } from '../theme/typography';
 import { BrutalBox } from './BrutalBox';
 
 export const PingLogoHeader: React.FC = () => {
@@ -269,7 +270,7 @@ const styles = StyleSheet.create({
   },
   realBadgeText: {
     fontSize: 11,
-    fontWeight: '900',
+    fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
     letterSpacing: 0.5,
   },

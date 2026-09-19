@@ -26,6 +26,7 @@ import {
 
 import { colors } from './src/theme/colors';
 import { typography } from './src/theme/typography';
+import { LAYOUT } from './src/theme/responsive';
 import { DotGridBackground } from './src/components/DotGridBackground';
 import { BrutalBox } from './src/components/BrutalBox';
 import { PingLogoHeader } from './src/components/PingLogoHeader';
@@ -645,7 +646,8 @@ const styles = StyleSheet.create({
   },
   container: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     flex: 1,
     justifyContent: 'space-between',
     alignItems: 'center',

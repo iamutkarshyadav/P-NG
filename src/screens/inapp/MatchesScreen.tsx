@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import Svg, {
@@ -17,6 +18,7 @@ import Svg, {
 } from 'react-native-svg';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../services/authDb';
 
@@ -549,9 +551,12 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingBottom: 24,
+    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
   },
   container: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     paddingHorizontal: 16,
     paddingTop: 12,
   },

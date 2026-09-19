@@ -8,14 +8,18 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
+import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
 import { UserAccount, authDb } from '../services/authDb';
 
 interface OnboardingBioScreenProps {
@@ -72,142 +76,141 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
       {/* 1. Universal Neo-Brutalist Onboarding Top Header */}
       <OnboardingTopHeader onBack={onBack} user={user} />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.container}>
-          {/* 2. Step Badge Pill */}
-          <View style={styles.stepBadgeWrapper}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.container}>
+          <View style={styles.contentSection}>
+            {/* 2. Step Badge Pill */}
+            <View style={styles.stepBadgeWrapper}>
+              <BrutalBox
+                backgroundColor={colors.accentYellow}
+                borderColor={colors.borderBlack}
+                borderWidth={2.2}
+                borderRadius={999}
+                shadowOffset={{ x: 2.2, y: 2.2 }}
+                contentStyle={styles.stepBadgeContent}
+              >
+                <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
+                <Text style={styles.stepBadgeText}>
+                  STEP 06 / 08 • VIBE PROMPT
+                </Text>
+              </BrutalBox>
+            </View>
+
+            {/* 3. Headline & Subtitle with Generous Headroom */}
+            <View style={styles.headlineWrapper}>
+              <Text style={styles.headlineTitle}>WHAT'S YOUR STORY?</Text>
+              <Text style={styles.subtitleText}>
+                Write a punchy bio or pick a quick conversation starter.
+              </Text>
+            </View>
+
+            {/* 4. Main Bio Input Card */}
+            <View style={styles.cardOuterWrapper}>
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.8}
+                borderRadius={22}
+                shadowOffset={{ x: 4, y: 4 }}
+                overflow="visible"
+                style={styles.fullWidth}
+                contentStyle={styles.inputCardContent}
+              >
+                {/* Floating Yellow Label */}
+                <View style={styles.floatingLabel}>
+                  <Text style={styles.floatingLabelText}>YOUR PROFILE BIO</Text>
+                </View>
+
+                {/* Text Area */}
+                <View style={styles.inputBox}>
+                  <TextInput
+                    style={styles.textArea}
+                    value={bioText}
+                    onChangeText={setBioText}
+                    placeholder="Tell potential matches what gets you excited..."
+                    placeholderTextColor="#888"
+                    multiline
+                    numberOfLines={4}
+                    maxLength={160}
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                {/* Character Counter */}
+                <View style={styles.counterRow}>
+                  <Text style={styles.counterNote}>Keep it short, punchy and 100% real.</Text>
+                  <View style={styles.counterBadge}>
+                    <Text style={styles.counterText}>{bioText.length}/160</Text>
+                  </View>
+                </View>
+              </BrutalBox>
+            </View>
+
+            {/* 5. Quick Prompt Starters */}
+            <View style={styles.promptStartersWrapper}>
+              <Text style={styles.startersHeader}>💡 QUICK STARTERS (TAP TO USE):</Text>
+              <View style={styles.startersList}>
+                {PROMPT_SUGGESTIONS.map((item, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    activeOpacity={0.8}
+                    onPress={() => handleSelectPrompt(item)}
+                    style={styles.starterChip}
+                  >
+                    <BrutalBox
+                      backgroundColor="#FFFFFF"
+                      borderColor={colors.borderBlack}
+                      borderWidth={1.8}
+                      borderRadius={14}
+                      shadowOffset={{ x: 2, y: 2 }}
+                      contentStyle={styles.starterChipContent}
+                    >
+                      <Text style={styles.starterText}>"{item}"</Text>
+                    </BrutalBox>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* 6. Tip Banner */}
             <BrutalBox
-              backgroundColor={colors.accentYellow}
+              backgroundColor={colors.lavender}
               borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.stepBadgeContent}
+              borderWidth={2.4}
+              borderRadius={18}
+              shadowOffset={{ x: 3.5, y: 3.5 }}
+              style={styles.fullWidth}
+              contentStyle={styles.tipCardContent}
             >
-              <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
-              <Text style={styles.stepBadgeText}>
-                STEP 06 / 08 • VIBE PROMPT
+              <View style={styles.tipIconBadge}>
+                <MaterialCommunityIcons name="lightning-bolt" size={17} color={colors.textDark} />
+              </View>
+              <Text style={styles.tipText}>
+                Profiles with filled bios receive 3.2x more genuine pings!
               </Text>
             </BrutalBox>
           </View>
-
-          {/* 3. Headline & Subtitle with Generous Headroom */}
-          <View style={styles.headlineWrapper}>
-            <Text style={styles.headlineTitle}>WHAT'S YOUR STORY?</Text>
-            <Text style={styles.subtitleText}>
-              Write a punchy bio or pick a quick conversation starter.
-            </Text>
-          </View>
-
-          {/* 4. Main Bio Input Card */}
-          <View style={styles.cardOuterWrapper}>
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2.8}
-              borderRadius={22}
-              shadowOffset={{ x: 4, y: 4 }}
-              overflow="visible"
-              style={styles.fullWidth}
-              contentStyle={styles.inputCardContent}
-            >
-              {/* Floating Yellow Label */}
-              <View style={styles.floatingLabel}>
-                <Text style={styles.floatingLabelText}>YOUR PROFILE BIO</Text>
-              </View>
-
-              {/* Text Area */}
-              <View style={styles.inputBox}>
-                <TextInput
-                  style={styles.textArea}
-                  value={bioText}
-                  onChangeText={setBioText}
-                  placeholder="Tell potential matches what gets you excited..."
-                  placeholderTextColor="#888"
-                  multiline
-                  numberOfLines={4}
-                  maxLength={160}
-                  textAlignVertical="top"
-                />
-              </View>
-
-              {/* Character Counter */}
-              <View style={styles.counterRow}>
-                <Text style={styles.counterNote}>Keep it short, punchy and 100% real.</Text>
-                <View style={styles.counterBadge}>
-                  <Text style={styles.counterText}>{bioText.length}/160</Text>
-                </View>
-              </View>
-            </BrutalBox>
-          </View>
-
-          {/* 5. Quick Prompt Starters */}
-          <View style={styles.promptStartersWrapper}>
-            <Text style={styles.startersHeader}>💡 QUICK STARTERS (TAP TO USE):</Text>
-            <View style={styles.startersList}>
-              {PROMPT_SUGGESTIONS.map((item, index) => (
-                <TouchableOpacity
-                  key={index}
-                  activeOpacity={0.8}
-                  onPress={() => handleSelectPrompt(item)}
-                  style={styles.starterChip}
-                >
-                  <BrutalBox
-                    backgroundColor="#FFFFFF"
-                    borderColor={colors.borderBlack}
-                    borderWidth={1.8}
-                    borderRadius={14}
-                    shadowOffset={{ x: 2, y: 2 }}
-                    contentStyle={styles.starterChipContent}
-                  >
-                    <Text style={styles.starterText}>"{item}"</Text>
-                  </BrutalBox>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* 6. Tip Banner */}
-          <BrutalBox
-            backgroundColor={colors.lavender}
-            borderColor={colors.borderBlack}
-            borderWidth={2.4}
-            borderRadius={18}
-            shadowOffset={{ x: 3.5, y: 3.5 }}
-            style={styles.fullWidth}
-            contentStyle={styles.tipCardContent}
-          >
-            <View style={styles.tipIconBadge}>
-              <MaterialCommunityIcons name="lightning-bolt" size={17} color={colors.textDark} />
-            </View>
-            <Text style={styles.tipText}>
-              Profiles with filled bios receive 3.2x more genuine pings!
-            </Text>
-          </BrutalBox>
         </View>
       </ScrollView>
 
-      {/* 7. Bottom CTA */}
-      <View style={styles.bottomCtaContainer}>
-        <BrutalBox
-          backgroundColor={colors.accentYellow}
-          borderColor={colors.borderBlack}
-          borderWidth={2.6}
-          borderRadius={999}
-          shadowOffset={{ x: 3.5, y: 3.5 }}
-          onPress={handleNext}
-          disabled={isSaving}
-          contentStyle={styles.nextButtonContent}
-        >
-          <Text style={styles.nextButtonText}>
-            {isSaving ? 'SAVING...' : 'NEXT ➔'}
-          </Text>
-        </BrutalBox>
+      {/* 7. Pinned Bottom Action Buttons */}
+      <View style={styles.bottomBarWrapper}>
+        <OnboardingBottomBar
+          onNext={handleNext}
+          onSkip={() => handleNext()}
+          isSaving={isSaving}
+        />
       </View>
-    </SafeAreaView>
+    </KeyboardAvoidingView>
+  </SafeAreaView>
   );
 };
 
@@ -270,17 +273,29 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 110,
+    paddingTop: 8,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   container: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     alignItems: 'flex-start',
-    gap: 14,
+    gap: 20,
+  },
+  bottomBarWrapper: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
+  },
+  contentSection: {
+    width: '100%',
+    alignItems: 'flex-start',
+    gap: 18,
   },
   fullWidth: {
     width: '100%',
@@ -444,24 +459,5 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyBold,
     color: colors.textDark,
     lineHeight: 17,
-  },
-
-  /* Bottom CTA */
-  bottomCtaContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-  },
-  nextButtonContent: {
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButtonText: {
-    fontSize: 22,
-    fontFamily: typography.headline,
-    color: colors.textDark,
-    letterSpacing: 0.8,
   },
 });

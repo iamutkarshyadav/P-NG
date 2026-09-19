@@ -6,14 +6,17 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
+import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
 import { UserAccount, authDb } from '../services/authDb';
 
 interface OnboardingPreferencesScreenProps {
@@ -77,261 +80,294 @@ export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenPr
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-          {/* 2. Step Badge Row */}
-          <View style={styles.stepBadgeRow}>
-            <BrutalBox
-              backgroundColor={colors.accentYellow}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.stepBadgeContent}
-            >
-              <Ionicons name="compass" size={13} color={colors.textDark} />
-              <Text style={styles.stepBadgeText}>STEP 04 / 08</Text>
-            </BrutalBox>
+          <View style={styles.contentSection}>
+            {/* 2. Step Badge Row */}
+            <View style={styles.stepBadgeRow}>
+              <BrutalBox
+                backgroundColor={colors.accentYellow}
+                borderColor={colors.borderBlack}
+                borderWidth={2.2}
+                borderRadius={999}
+                shadowOffset={{ x: 2.2, y: 2.2 }}
+                contentStyle={styles.stepBadgeContent}
+              >
+                <Ionicons name="compass" size={13} color={colors.textDark} />
+                <Text style={styles.stepBadgeText}>STEP 04 / 08</Text>
+              </BrutalBox>
 
-            <View style={styles.vibeMatchingPill}>
-              <View style={styles.vibeDot} />
-              <Text style={styles.vibeMatchingText}>VIBE MATCHING</Text>
-            </View>
-          </View>
-
-          {/* 3. Headline */}
-          <View style={styles.headlineWrapper}>
-            <Text style={styles.headlineText}>WHO DO YOU WANT TO SEE?</Text>
-            <View style={styles.subtitleRow}>
-              <Ionicons name="heart-outline" size={14} color={colors.primaryPink} style={{ marginTop: 2 }} />
-              <Text style={styles.subtitleText}>
-                Pick everyone you'd like in your Discovery feed.
-              </Text>
-            </View>
-          </View>
-
-          {/* 4. INTERESTED IN Card */}
-          <View style={styles.cardOuterWrapper}>
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2.8}
-              borderRadius={20}
-              shadowOffset={{ x: 4, y: 4 }}
-              overflow="visible"
-              style={styles.fullWidth}
-              contentStyle={styles.cardContent}
-            >
-              <View style={styles.floatingLabel}>
-                <Ionicons name="people" size={12} color={colors.textDark} />
-                <Text style={styles.floatingLabelText}>INTERESTED IN</Text>
+              <View style={styles.vibeMatchingPill}>
+                <View style={styles.vibeDot} />
+                <Text style={styles.vibeMatchingText}>VIBE MATCHING</Text>
               </View>
+            </View>
 
-              <View style={styles.grid2x2}>
-                {INTERESTED_OPTIONS.map((opt) => {
-                  const isSelected = selectedInterested.includes(opt);
-                  return (
-                    <TouchableOpacity
-                      key={opt}
-                      activeOpacity={0.85}
-                      onPress={() => toggleInterested(opt)}
-                      style={[
-                        styles.selectPill,
-                        isSelected ? styles.selectPillActiveYellow : styles.selectPillInactive,
-                      ]}
-                    >
-                      <Text style={styles.selectPillText}>{opt}</Text>
-                      <View
-                        style={[
-                          styles.checkCircle,
-                          isSelected ? styles.checkCircleActive : styles.checkCircleInactive,
-                        ]}
+            {/* 3. Headline */}
+            <View style={styles.headlineWrapper}>
+              <Text style={styles.headlineText}>WHO DO YOU WANT TO SEE?</Text>
+              <View style={styles.subtitleRow}>
+                <Ionicons name="heart-outline" size={14} color={colors.primaryPink} style={{ marginTop: 2 }} />
+                <Text style={styles.subtitleText}>
+                  Pick everyone you'd like in your Discovery feed.
+                </Text>
+              </View>
+            </View>
+
+            {/* 4. INTERESTED IN Card */}
+            <View style={styles.cardOuterWrapper}>
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.8}
+                borderRadius={20}
+                shadowOffset={{ x: 4, y: 4 }}
+                overflow="visible"
+                style={styles.fullWidth}
+                contentStyle={styles.cardContent}
+              >
+                <View style={styles.floatingLabel}>
+                  <Ionicons name="people" size={12} color={colors.textDark} />
+                  <Text style={styles.floatingLabelText}>INTERESTED IN (SELECT ALL THAT APPLY)</Text>
+                </View>
+
+                <View style={styles.optionsCol}>
+                  {INTERESTED_OPTIONS.map((opt) => {
+                    const isSelected = selectedInterested.includes(opt);
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        activeOpacity={0.8}
+                        onPress={() => toggleInterested(opt)}
                       >
-                        {isSelected && <Ionicons name="checkmark" size={13} color="#FFF" />}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </BrutalBox>
-          </View>
+                        <BrutalBox
+                          backgroundColor={isSelected ? colors.accentYellow : '#FFFFFF'}
+                          borderColor={colors.borderBlack}
+                          borderWidth={2.2}
+                          borderRadius={14}
+                          shadowOffset={isSelected ? { x: 3, y: 3 } : { x: 2, y: 2 }}
+                          contentStyle={styles.optionRowContent}
+                        >
+                          <View style={styles.optionLeftRow}>
+                            <View
+                              style={[
+                                styles.checkboxSquare,
+                                isSelected && styles.checkboxSquareSelected,
+                              ]}
+                            >
+                              {isSelected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                            </View>
+                            <Text
+                              style={[
+                                styles.optionText,
+                                isSelected && styles.optionTextSelected,
+                              ]}
+                            >
+                              {opt}
+                            </Text>
+                          </View>
+                          {isSelected && (
+                            <View style={styles.activeMiniBadge}>
+                              <Text style={styles.activeMiniBadgeText}>MATCH</Text>
+                            </View>
+                          )}
+                        </BrutalBox>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </BrutalBox>
+            </View>
 
-          {/* 5. LOOKING FOR Card */}
-          <View style={styles.cardOuterWrapper}>
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2.8}
-              borderRadius={20}
-              shadowOffset={{ x: 4, y: 4 }}
-              overflow="visible"
-              style={styles.fullWidth}
-              contentStyle={styles.cardContent}
-            >
-              <View style={styles.floatingLabel}>
-                <Feather name="search" size={12} color={colors.textDark} />
-                <Text style={styles.floatingLabelText}>LOOKING FOR</Text>
-              </View>
+            {/* 5. LOOKING FOR Card */}
+            <View style={styles.cardOuterWrapper}>
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.8}
+                borderRadius={20}
+                shadowOffset={{ x: 4, y: 4 }}
+                overflow="visible"
+                style={styles.fullWidth}
+                contentStyle={styles.cardContent}
+              >
+                <View style={styles.floatingLabel}>
+                  <Ionicons name="flame" size={12} color={colors.textDark} />
+                  <Text style={styles.floatingLabelText}>LOOKING FOR</Text>
+                </View>
 
-              <View style={styles.grid2x2}>
-                {LOOKING_FOR_OPTIONS.map((opt) => {
-                  const isSelected = selectedLookingFor === opt;
-                  return (
-                    <TouchableOpacity
-                      key={opt}
-                      activeOpacity={0.85}
-                      onPress={() => setSelectedLookingFor(opt)}
-                      style={[
-                        styles.selectPill,
-                        isSelected ? styles.selectPillActivePink : styles.selectPillInactive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.selectPillText,
-                          isSelected && styles.selectPillTextWhite,
-                        ]}
+                <View style={styles.optionsCol}>
+                  {LOOKING_FOR_OPTIONS.map((opt) => {
+                    const isSelected = selectedLookingFor === opt;
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        activeOpacity={0.8}
+                        onPress={() => setSelectedLookingFor(opt)}
                       >
-                        {opt}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </BrutalBox>
-          </View>
+                        <BrutalBox
+                          backgroundColor={isSelected ? '#C7D2FE' : '#FFFFFF'}
+                          borderColor={colors.borderBlack}
+                          borderWidth={2.2}
+                          borderRadius={14}
+                          shadowOffset={isSelected ? { x: 3, y: 3 } : { x: 2, y: 2 }}
+                          contentStyle={styles.optionRowContent}
+                        >
+                          <View style={styles.optionLeftRow}>
+                            <View
+                              style={[
+                                styles.radioCircle,
+                                isSelected && styles.radioCircleSelected,
+                              ]}
+                            >
+                              {isSelected && <View style={styles.radioDot} />}
+                            </View>
+                            <Text
+                              style={[
+                                styles.optionText,
+                                isSelected && styles.optionTextSelected,
+                              ]}
+                            >
+                              {opt}
+                            </Text>
+                          </View>
+                          {isSelected && (
+                            <Ionicons name="sparkles" size={16} color={colors.primaryPink} />
+                          )}
+                        </BrutalBox>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </BrutalBox>
+            </View>
 
-          {/* 6. AGE RANGE Card */}
-          <View style={styles.cardOuterWrapper}>
+            {/* 6. AGE RANGE SLIDER Card */}
+            <View style={styles.cardOuterWrapper}>
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.8}
+                borderRadius={20}
+                shadowOffset={{ x: 4, y: 4 }}
+                overflow="visible"
+                style={styles.fullWidth}
+                contentStyle={styles.cardContent}
+              >
+                <View style={styles.floatingLabel}>
+                  <Ionicons name="calendar" size={12} color={colors.textDark} />
+                  <Text style={styles.floatingLabelText}>AGE RANGE</Text>
+                </View>
+
+                <View style={styles.sliderHeaderRow}>
+                  <Text style={styles.sliderLabelTitle}>TARGET AGES</Text>
+                  <View style={styles.purpleRangeBadge}>
+                    <Text style={styles.purpleRangeText}>
+                      {minAge} — {maxAge} YRS
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.trackContainer}>
+                  <View style={styles.sliderTrackBg}>
+                    <View
+                      style={[
+                        styles.sliderTrackFillPink,
+                        {
+                          left: `${((minAge - 18) / 42) * 100}%`,
+                          right: `${100 - ((maxAge - 18) / 42) * 100}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.sliderFooterRow}>
+                  <Text style={styles.sliderLimitText}>18</Text>
+                  <Text style={styles.sliderSubLabel}>ADJUSTABLE IN SETTINGS</Text>
+                  <Text style={styles.sliderLimitText}>60+</Text>
+                </View>
+              </BrutalBox>
+            </View>
+
+            {/* 7. MAXIMUM DISTANCE Card */}
+            <View style={styles.cardOuterWrapper}>
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.8}
+                borderRadius={20}
+                shadowOffset={{ x: 4, y: 4 }}
+                overflow="visible"
+                style={styles.fullWidth}
+                contentStyle={styles.cardContent}
+              >
+                <View style={styles.floatingLabel}>
+                  <Ionicons name="navigate" size={12} color={colors.textDark} />
+                  <Text style={styles.floatingLabelText}>MAXIMUM DISTANCE</Text>
+                </View>
+
+                <View style={styles.sliderHeaderRow}>
+                  <Text style={styles.sliderLabelTitle}>DISCOVERY RADIUS</Text>
+                  <View style={styles.yellowDistanceBadge}>
+                    <Ionicons name="location-sharp" size={12} color={colors.textDark} />
+                    <Text style={styles.yellowDistanceText}>UP TO {distanceKm} KM</Text>
+                  </View>
+                </View>
+
+                <View style={styles.trackContainer}>
+                  <View style={styles.sliderTrackBg}>
+                    <View
+                      style={[
+                        styles.sliderTrackFillYellow,
+                        { width: `${(distanceKm / 100) * 100}%` },
+                      ]}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.sliderFooterRow}>
+                  <Text style={styles.sliderLimitText}>2 KM</Text>
+                  <Text style={styles.sliderSubLabel}>LOCAL NEIGHBORHOOD</Text>
+                  <Text style={styles.sliderLimitText}>100 KM</Text>
+                </View>
+              </BrutalBox>
+            </View>
+
+            {/* 8. Discovery Feed Preview Banner */}
             <BrutalBox
-              backgroundColor={colors.cardWhite}
+              backgroundColor="#C7D2FE"
               borderColor={colors.borderBlack}
-              borderWidth={2.8}
-              borderRadius={20}
-              shadowOffset={{ x: 4, y: 4 }}
-              overflow="visible"
+              borderWidth={2.4}
+              borderRadius={18}
+              shadowOffset={{ x: 3, y: 3 }}
               style={styles.fullWidth}
-              contentStyle={styles.cardContent}
+              contentStyle={styles.discoveryCardContent}
             >
-              <View style={styles.floatingLabel}>
-                <MaterialCommunityIcons name="cake-variant" size={12} color={colors.textDark} />
-                <Text style={styles.floatingLabelText}>AGE RANGE</Text>
+              <View style={styles.discoveryIconCircle}>
+                <Ionicons name="flash" size={18} color="#FFFFFF" />
               </View>
 
-              <View style={styles.sliderHeaderRow}>
-                <Text style={styles.sliderLabelTitle}>Target Peers</Text>
-                <View style={styles.purpleRangeBadge}>
-                  <Ionicons name="flash" size={12} color={colors.textDark} />
-                  <Text style={styles.purpleRangeText}>{minAge} - {maxAge}</Text>
-                </View>
+              <View style={styles.discoveryTextCol}>
+                <Text style={styles.discoveryTitle}>EXPANDED DISCOVERY READY</Text>
+                <Text style={styles.discoverySub}>
+                  You'll see ~140 active profiles right away!
+                </Text>
               </View>
 
-              {/* Slider Track Visual */}
-              <View style={styles.trackContainer}>
-                <View style={styles.sliderTrackBg}>
-                  <View style={[styles.sliderTrackFillPink, { left: '20%', right: '40%' }]} />
-                </View>
-                <View style={[styles.sliderThumb, { left: '18%' }]}>
-                  <View style={styles.thumbCenterDot} />
-                </View>
-                <View style={[styles.sliderThumb, { left: '58%' }]}>
-                  <View style={styles.thumbCenterDot} />
-                </View>
-              </View>
-
-              <View style={styles.sliderFooterRow}>
-                <Text style={styles.sliderLimitText}>18 YRS</Text>
-                <Text style={styles.sliderSubLabel}>SWEET SPOT</Text>
-                <Text style={styles.sliderLimitText}>50+ YRS</Text>
+              <View style={styles.boostedBadge}>
+                <Text style={styles.boostedBadgeText}>BOOSTED</Text>
               </View>
             </BrutalBox>
           </View>
-
-          {/* 7. MAX DISTANCE Card */}
-          <View style={styles.cardOuterWrapper}>
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2.8}
-              borderRadius={20}
-              shadowOffset={{ x: 4, y: 4 }}
-              overflow="visible"
-              style={styles.fullWidth}
-              contentStyle={styles.cardContent}
-            >
-              <View style={styles.floatingLabel}>
-                <Feather name="navigation" size={12} color={colors.textDark} />
-                <Text style={styles.floatingLabelText}>MAX DISTANCE</Text>
-              </View>
-
-              <View style={styles.sliderHeaderRow}>
-                <Text style={styles.sliderLabelTitle}>Search Radius</Text>
-                <View style={styles.yellowDistanceBadge}>
-                  <Ionicons name="location" size={12} color={colors.textDark} />
-                  <Text style={styles.yellowDistanceText}>WITHIN {distanceKm} KM</Text>
-                </View>
-              </View>
-
-              {/* Distance Slider Track */}
-              <View style={styles.trackContainer}>
-                <View style={styles.sliderTrackBg}>
-                  <View style={[styles.sliderTrackFillYellow, { width: '35%' }]} />
-                </View>
-                <View style={[styles.sliderThumb, { left: '33%' }]}>
-                  <View style={styles.thumbCenterDot} />
-                </View>
-              </View>
-
-              <View style={styles.sliderFooterRow}>
-                <Text style={styles.sliderLimitText}>2 KM</Text>
-                <Text style={styles.sliderSubLabel}>NEIGHBORHOOD</Text>
-                <Text style={styles.sliderLimitText}>100 KM</Text>
-              </View>
-            </BrutalBox>
-          </View>
-
-          {/* 8. EXPANDED DISCOVERY READY Notice Card */}
-          <BrutalBox
-            backgroundColor="#FFE5EE"
-            borderColor={colors.borderBlack}
-            borderWidth={2.4}
-            borderRadius={18}
-            shadowOffset={{ x: 3, y: 3 }}
-            style={styles.fullWidth}
-            contentStyle={styles.discoveryCardContent}
-          >
-            <View style={styles.discoveryIconCircle}>
-              <Ionicons name="flash" size={18} color="#FFFFFF" />
-            </View>
-
-            <View style={styles.discoveryTextCol}>
-              <Text style={styles.discoveryTitle}>EXPANDED DISCOVERY READY</Text>
-              <Text style={styles.discoverySub}>
-                You'll see ~140 active profiles right away!
-              </Text>
-            </View>
-
-            <View style={styles.boostedBadge}>
-              <Text style={styles.boostedBadgeText}>BOOSTED</Text>
-            </View>
-          </BrutalBox>
         </View>
       </ScrollView>
 
-      {/* 9. Sticky Bottom CTA Button */}
-      <View style={styles.bottomCtaContainer}>
-        <BrutalBox
-          backgroundColor={colors.accentYellow}
-          borderColor={colors.borderBlack}
-          borderWidth={2.6}
-          borderRadius={999}
-          shadowOffset={{ x: 3.5, y: 3.5 }}
-          onPress={handleNext}
-          disabled={isSaving}
-          contentStyle={styles.nextButtonContent}
-        >
-          <Text style={styles.nextButtonText}>
-            {isSaving ? 'SAVING...' : 'NEXT ➔'}
-          </Text>
-        </BrutalBox>
+      {/* Pinned Bottom Action Buttons */}
+      <View style={styles.bottomBarWrapper}>
+        <OnboardingBottomBar
+          onNext={handleNext}
+          onSkip={() => handleNext()}
+          isSaving={isSaving}
+        />
       </View>
     </SafeAreaView>
   );
@@ -397,17 +433,29 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 110,
+    paddingTop: 8,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   container: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     alignItems: 'flex-start',
-    gap: 16,
+    gap: 20,
+  },
+  bottomBarWrapper: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
+  },
+  contentSection: {
+    width: '100%',
+    alignItems: 'flex-start',
+    gap: 18,
   },
   fullWidth: {
     width: '100%',
@@ -568,6 +616,77 @@ const styles = StyleSheet.create({
   checkCircleInactive: {
     backgroundColor: 'transparent',
   },
+  optionsCol: {
+    gap: 8,
+    marginTop: 4,
+  },
+  optionRowContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  optionLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  checkboxSquare: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.borderBlack,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSquareSelected: {
+    backgroundColor: '#000000',
+  },
+  radioCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.borderBlack,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioCircleSelected: {
+    borderColor: colors.borderBlack,
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primaryPink,
+  },
+  optionText: {
+    fontSize: 13.5,
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+    letterSpacing: 0.3,
+  },
+  optionTextSelected: {
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textDark,
+  },
+  activeMiniBadge: {
+    backgroundColor: '#000000',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  activeMiniBadgeText: {
+    fontSize: 9.5,
+    fontFamily: typography.bodyExtraBold,
+    color: '#FFE600',
+    letterSpacing: 0.5,
+  },
   sliderHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -710,22 +829,5 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
     letterSpacing: 0.4,
-  },
-  bottomCtaContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-  },
-  nextButtonContent: {
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButtonText: {
-    fontSize: 18,
-    fontFamily: typography.headline,
-    color: colors.textDark,
-    letterSpacing: 0.8,
   },
 });

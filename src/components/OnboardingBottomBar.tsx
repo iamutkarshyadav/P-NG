@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 import { BrutalBox } from './BrutalBox';
 
 interface OnboardingBottomBarProps {
@@ -69,12 +70,12 @@ export const OnboardingBottomBar: React.FC<OnboardingBottomBarProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginTop: 20,
-    marginBottom: 8,
+    marginVertical: 4,
   },
   skipWrapper: {
     width: 100,

@@ -7,11 +7,13 @@ import {
   Modal,
   Text,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { InAppTopHeader } from '../components/InAppTopHeader';
@@ -21,12 +23,13 @@ import { LikesScreen } from './inapp/LikesScreen';
 import { MatchesScreen } from './inapp/MatchesScreen';
 import { ProfileScreen } from './inapp/ProfileScreen';
 import { ChatScreen } from './inapp/ChatScreen';
+import { PreferencesScreen } from './inapp/PreferencesScreen';
 import { UserAccount } from '../services/authDb';
 
 interface AppHomeScreenProps {
   user: UserAccount;
   onLogout: () => void;
-  onSwitchToDemo: (demo: 'alex' | 'sam') => void;
+  onSwitchToDemo?: (demo: 'alex' | 'sam' | 'google') => void;
   onReplayOnboarding?: () => void;
 }
 
@@ -38,12 +41,17 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<InAppTab>('discover');
   const [activeChatPartner, setActiveChatPartner] = useState<string | null>(null);
+  const [showPreferences, setShowPreferences] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [isProfileSubScreenActive, setIsProfileSubScreenActive] = useState(false);
+  const [profileSubScreen, setProfileSubScreen] = useState<
+    'none' | 'account' | 'preferences' | 'safety' | 'settings' | 'preview'
+  >('none');
   const [maxDistance, setMaxDistance] = useState(10);
   const [ageRange, setAgeRange] = useState('21 - 32');
 
   const handleOpenFilter = () => {
-    setShowFilterModal(true);
+    setShowPreferences(true);
   };
 
   const handleCloseFilter = () => {
@@ -61,17 +69,52 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
     );
   }
 
+  // If Preferences & Filters is opened directly from Discover tab
+  if (showPreferences) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        <DotGridBackground />
+        <View style={styles.contentViewport}>
+          <PreferencesScreen
+            user={user}
+            onBack={() => setShowPreferences(false)}
+            onPreviewProfile={() => {
+              setShowPreferences(false);
+              setActiveTab('profile');
+            }}
+          />
+        </View>
+        <InAppBottomNav
+          activeTab={activeTab}
+          onSelectTab={(tab) => {
+            setShowPreferences(false);
+            setActiveTab(tab);
+          }}
+          likesCount={9}
+          hasUnreadMatches={true}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <DotGridBackground />
 
-      {/* 1. Universal Neo-Brutalist Top Header */}
-      <InAppTopHeader
-        user={user}
-        onPressFilter={handleOpenFilter}
-        onPressAvatar={() => setActiveTab('profile')}
-      />
+      {/* 1. Universal Neo-Brutalist Top Header - Hidden on sub-screens */}
+      {!isProfileSubScreenActive && (
+        <InAppTopHeader
+          user={user}
+          activeTab={activeTab}
+          onPressFilter={handleOpenFilter}
+          onPressAvatar={() => setActiveTab('profile')}
+          onPressSettings={() => {
+            setProfileSubScreen('settings');
+          }}
+        />
+      )}
 
       {/* 2. Main In-App Viewport */}
       <View style={styles.contentViewport}>
@@ -87,15 +130,22 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
           <ProfileScreen
             user={user}
             onLogout={onLogout}
+            onSwitchToDemo={onSwitchToDemo}
             onReplayOnboarding={onReplayOnboarding}
+            onSubScreenChange={(isSub) => setIsProfileSubScreenActive(isSub)}
+            initialSubScreen={profileSubScreen}
           />
         )}
       </View>
 
-      {/* 3. Universal Neo-Brutalist Bottom Tab Bar */}
+      {/* 3. Universal Neo-Brutalist Bottom Tab Bar - Permanently fixed across all screens */}
       <InAppBottomNav
         activeTab={activeTab}
-        onSelectTab={(tab) => setActiveTab(tab)}
+        onSelectTab={(tab) => {
+          setActiveTab(tab);
+          setProfileSubScreen('none');
+          setIsProfileSubScreenActive(false);
+        }}
         likesCount={9}
         hasUnreadMatches={true}
       />
@@ -236,10 +286,17 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    height: Platform.OS === 'web' ? ('100vh' as any) : '100%',
+    minHeight: Platform.OS === 'web' ? ('100vh' as any) : '100%',
     backgroundColor: '#FAF7F2',
+    position: 'relative',
   },
   contentViewport: {
     flex: 1,
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
+    paddingBottom: 0,
   },
   modalOverlay: {
     flex: 1,

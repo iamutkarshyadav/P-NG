@@ -7,14 +7,17 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
+import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
 import { UserAccount, authDb } from '../services/authDb';
 
 interface OnboardingIdentityScreenProps {
@@ -70,157 +73,166 @@ export const OnboardingIdentityScreen: React.FC<OnboardingIdentityScreenProps> =
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-          {/* 2. Step Badge Pill */}
-          <View style={styles.stepBadgeWrapper}>
-            <BrutalBox
-              backgroundColor={colors.accentYellow}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.stepBadgeContent}
-            >
-              <Ionicons name="flash" size={13} color={colors.textDark} />
-              <Text style={styles.stepBadgeText}>
-                STEP 03 / 08 • YOU DO YOU
+          <View style={styles.contentSection}>
+            {/* 2. Step Badge Pill */}
+            <View style={styles.stepBadgeWrapper}>
+              <BrutalBox
+                backgroundColor={colors.accentYellow}
+                borderColor={colors.borderBlack}
+                borderWidth={2.2}
+                borderRadius={999}
+                shadowOffset={{ x: 2.2, y: 2.2 }}
+                contentStyle={styles.stepBadgeContent}
+              >
+                <Ionicons name="flash" size={13} color={colors.textDark} />
+                <Text style={styles.stepBadgeText}>
+                  STEP 03 / 08 • YOU DO YOU
+                </Text>
+              </BrutalBox>
+            </View>
+
+            {/* 3. Headline */}
+            <View style={styles.headlineWrapper}>
+              <Text style={styles.headlineLine1}>HOW DO YOU</Text>
+              <Text style={styles.headlinePink}>IDENTIFY?</Text>
+              <Text style={styles.subtitleText}>
+                This helps us build your profile accurately.
               </Text>
-            </BrutalBox>
-          </View>
+            </View>
 
-          {/* 3. Headline */}
-          <View style={styles.headlineWrapper}>
-            <Text style={styles.headlineLine1}>HOW DO YOU</Text>
-            <Text style={styles.headlinePink}>IDENTIFY?</Text>
-            <Text style={styles.subtitleText}>
-              This helps us build your profile accurately.
-            </Text>
-          </View>
+            {/* 4. Identity Selection Card */}
+            <View style={styles.cardOuterWrapper}>
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.8}
+                borderRadius={22}
+                shadowOffset={{ x: 4, y: 4 }}
+                overflow="visible"
+                style={styles.fullWidth}
+                contentStyle={styles.identityCardContent}
+              >
+                {/* Overlapping Floating Yellow Label */}
+                <View style={styles.floatingLabel}>
+                  <Text style={styles.floatingLabelText}>SELECT GENDER</Text>
+                </View>
 
-          {/* 4. Identity Selection Card */}
-          <View style={styles.cardOuterWrapper}>
+                {/* 4 Gender Options */}
+                <View style={styles.optionsCol}>
+                  {GENDER_OPTIONS.map((opt) => {
+                    const isSelected = selectedGender === opt;
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        activeOpacity={0.8}
+                        onPress={() => setSelectedGender(opt)}
+                      >
+                        <BrutalBox
+                          backgroundColor={isSelected ? colors.accentYellow : '#FFFFFF'}
+                          borderColor={colors.borderBlack}
+                          borderWidth={2.2}
+                          borderRadius={14}
+                          shadowOffset={isSelected ? { x: 3, y: 3 } : { x: 2, y: 2 }}
+                          contentStyle={styles.optionRowContent}
+                        >
+                          <View style={styles.optionLeftRow}>
+                            <View
+                              style={[
+                                styles.radioCircle,
+                                isSelected && styles.radioCircleSelected,
+                              ]}
+                            >
+                              {isSelected && <View style={styles.radioDot} />}
+                            </View>
+                            <Text
+                              style={[
+                                styles.optionText,
+                                isSelected && styles.optionTextSelected,
+                              ]}
+                            >
+                              {opt}
+                            </Text>
+                          </View>
+                          {isSelected && (
+                            <Ionicons
+                              name="checkmark"
+                              size={18}
+                              color={colors.textDark}
+                            />
+                          )}
+                        </BrutalBox>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </BrutalBox>
+            </View>
+
+            {/* 5. Profile Visibility Card */}
             <BrutalBox
               backgroundColor={colors.cardWhite}
               borderColor={colors.borderBlack}
-              borderWidth={2.8}
-              borderRadius={22}
-              shadowOffset={{ x: 4, y: 4 }}
-              overflow="visible"
+              borderWidth={2.4}
+              borderRadius={18}
+              shadowOffset={{ x: 3, y: 3 }}
               style={styles.fullWidth}
-              contentStyle={styles.identityCardContent}
+              contentStyle={styles.visibilityCardContent}
             >
-              {/* Overlapping Floating Yellow Label */}
-              <View style={styles.floatingLabel}>
-                <MaterialCommunityIcons name="briefcase-outline" size={14} color={colors.textDark} />
-                <Text style={styles.floatingLabelText}>I IDENTIFY AS</Text>
+              <View style={styles.visibilityTextCol}>
+                <Text style={styles.visibilityTitle}>
+                  SHOW GENDER ON PROFILE
+                </Text>
+                <Text style={styles.visibilitySubtext}>
+                  Visible to other members viewing your cards
+                </Text>
               </View>
 
-              {/* 2x2 Grid of Neo-Brutalist Pill Buttons */}
-              <View style={styles.genderGrid}>
-                {GENDER_OPTIONS.map((g) => {
-                  const isSelected = selectedGender === g;
-                  return (
-                    <View key={g} style={styles.genderPillCol}>
-                      <BrutalBox
-                        backgroundColor={isSelected ? colors.accentYellow : colors.cardWhite}
-                        borderColor={colors.borderBlack}
-                        borderWidth={2.4}
-                        borderRadius={999}
-                        shadowOffset={{ x: 2.5, y: 2.5 }}
-                        onPress={() => setSelectedGender(g)}
-                        contentStyle={styles.genderPillContent}
-                      >
-                        {isSelected && (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={16}
-                            color={colors.textDark}
-                            style={styles.checkIcon}
-                          />
-                        )}
-                        <Text style={styles.genderPillText}>{g}</Text>
-                      </BrutalBox>
-                    </View>
-                  );
-                })}
+              {/* Neo-brutalist custom switch */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setShowGenderOnProfile(!showGenderOnProfile)}
+                style={[
+                  styles.customSwitchTrack,
+                  showGenderOnProfile ? styles.customSwitchTrackActive : styles.customSwitchTrackInactive,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.customSwitchKnob,
+                    showGenderOnProfile ? styles.knobActive : styles.knobInactive,
+                  ]}
+                />
+              </TouchableOpacity>
+            </BrutalBox>
+
+            {/* 6. Privacy Card */}
+            <BrutalBox
+              backgroundColor={colors.lavender}
+              borderColor={colors.borderBlack}
+              borderWidth={2.4}
+              borderRadius={18}
+              shadowOffset={{ x: 3, y: 3 }}
+              style={styles.fullWidth}
+              contentStyle={styles.privacyCardContent}
+            >
+              <View style={styles.lockIconCircle}>
+                <Feather name="lock" size={16} color={colors.textDark} />
               </View>
+              <Text style={styles.privacyCardText}>
+                Your privacy matters. You can change visibility settings anytime from your profile editor.
+              </Text>
             </BrutalBox>
           </View>
-
-          {/* 5. Visibility Toggle Card */}
-          <BrutalBox
-            backgroundColor={colors.cardWhite}
-            borderColor={colors.borderBlack}
-            borderWidth={2.4}
-            borderRadius={20}
-            shadowOffset={{ x: 3.5, y: 3.5 }}
-            style={styles.fullWidth}
-            contentStyle={styles.toggleCardContent}
-          >
-            <View style={styles.eyeIconSquare}>
-              <Feather name="eye" size={20} color={colors.primaryPink} />
-            </View>
-
-            <View style={styles.toggleInfoCol}>
-              <Text style={styles.toggleTitleText}>Show gender on my profile</Text>
-              <Text style={styles.toggleSubtitleText}>
-                Others will see this next to your name
-              </Text>
-            </View>
-
-            {/* Custom Neo-Brutalist Switch */}
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => setShowGenderOnProfile(!showGenderOnProfile)}
-              style={[
-                styles.customSwitchTrack,
-                showGenderOnProfile ? styles.customSwitchTrackActive : styles.customSwitchTrackInactive,
-              ]}
-            >
-              <View
-                style={[
-                  styles.customSwitchKnob,
-                  showGenderOnProfile ? styles.knobActive : styles.knobInactive,
-                ]}
-              />
-            </TouchableOpacity>
-          </BrutalBox>
-
-          {/* 6. Privacy Card */}
-          <BrutalBox
-            backgroundColor={colors.lavender}
-            borderColor={colors.borderBlack}
-            borderWidth={2.4}
-            borderRadius={18}
-            shadowOffset={{ x: 3, y: 3 }}
-            style={styles.fullWidth}
-            contentStyle={styles.privacyCardContent}
-          >
-            <View style={styles.lockIconCircle}>
-              <Feather name="lock" size={16} color={colors.textDark} />
-            </View>
-            <Text style={styles.privacyCardText}>
-              Your privacy matters. You can change visibility settings anytime from your profile editor.
-            </Text>
-          </BrutalBox>
         </View>
       </ScrollView>
 
-      {/* 7. Sticky Bottom CTA Button */}
-      <View style={styles.bottomCtaContainer}>
-        <BrutalBox
-          backgroundColor={colors.accentYellow}
-          borderColor={colors.borderBlack}
-          borderWidth={2.6}
-          borderRadius={999}
-          shadowOffset={{ x: 3.5, y: 3.5 }}
-          onPress={handleNext}
-          disabled={isSaving}
-          contentStyle={styles.nextButtonContent}
-        >
-          <Text style={styles.nextButtonText}>
-            {isSaving ? 'SAVING...' : 'NEXT ➔'}
-          </Text>
-        </BrutalBox>
+      {/* 7. Pinned Bottom Navigation Dual Buttons */}
+      <View style={styles.bottomBarWrapper}>
+        <OnboardingBottomBar
+          onNext={handleNext}
+          onSkip={() => handleNext()}
+          isSaving={isSaving}
+        />
       </View>
     </SafeAreaView>
   );
@@ -286,17 +298,29 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 110,
+    paddingTop: 8,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   container: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     alignItems: 'flex-start',
-    gap: 16,
+    gap: 20,
+  },
+  bottomBarWrapper: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
+  },
+  contentSection: {
+    width: '100%',
+    alignItems: 'flex-start',
+    gap: 18,
   },
   fullWidth: {
     width: '100%',
@@ -375,63 +399,75 @@ const styles = StyleSheet.create({
   },
   floatingLabelText: {
     fontSize: 10.5,
-    fontWeight: '900',
+    fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
     letterSpacing: 0.4,
   },
-  genderGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+  optionsCol: {
+    gap: 8,
     marginTop: 4,
   },
-  genderPillCol: {
-    width: '48%',
-  },
-  genderPillContent: {
-    height: 48,
+  optionRowContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  optionLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  radioCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.borderBlack,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
   },
-  checkIcon: {
-    marginRight: 6,
+  radioCircleSelected: {
+    borderColor: colors.borderBlack,
   },
-  genderPillText: {
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primaryPink,
+  },
+  optionText: {
     fontSize: 14,
-    fontWeight: '900',
+    fontFamily: typography.bodyBold,
     color: colors.textDark,
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   },
-  toggleCardContent: {
+  optionTextSelected: {
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textDark,
+  },
+  visibilityCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     gap: 12,
   },
-  eyeIconSquare: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFF0F5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toggleInfoCol: {
+  visibilityTextCol: {
     flex: 1,
     gap: 2,
   },
-  toggleTitleText: {
-    fontSize: 14,
-    fontWeight: '900',
+  visibilityTitle: {
+    fontSize: 13,
+    fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
+    letterSpacing: 0.3,
   },
-  toggleSubtitleText: {
+  visibilitySubtext: {
     fontSize: 11.5,
-    fontWeight: '700',
+    fontFamily: typography.bodyMedium,
     color: '#666',
   },
   customSwitchTrack: {
@@ -479,26 +515,9 @@ const styles = StyleSheet.create({
   },
   privacyCardText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: typography.bodyMedium,
     color: '#333',
     flex: 1,
     lineHeight: 16,
-  },
-  bottomCtaContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-  },
-  nextButtonContent: {
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButtonText: {
-    fontSize: 22,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.8,
   },
 });

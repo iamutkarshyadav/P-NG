@@ -1,8 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 
 export type InAppTab = 'discover' | 'likes' | 'matches' | 'profile';
 
@@ -20,177 +21,201 @@ export const InAppBottomNav: React.FC<InAppBottomNavProps> = ({
   hasUnreadMatches = true,
 }) => {
   return (
-    <View style={styles.navBarContainer}>
-      {/* 1. DISCOVER TAB */}
-      <TouchableOpacity
-        style={styles.tabItem}
-        activeOpacity={0.8}
-        onPress={() => onSelectTab('discover')}
-      >
-        <View
-          style={[
-            styles.iconWrapper,
-            activeTab === 'discover' && styles.activeIconWrapper,
-          ]}
+    <View style={styles.navBarWrapper}>
+      <View style={styles.navBarContainer}>
+        {/* 1. DISCOVER TAB */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          activeOpacity={0.75}
+          onPress={() => onSelectTab('discover')}
         >
-          <Ionicons
-            name={activeTab === 'discover' ? 'compass' : 'compass-outline'}
-            size={22}
-            color={colors.textDark}
-          />
-        </View>
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === 'discover' && styles.activeTabLabel,
-          ]}
-        >
-          DISCOVER
-        </Text>
-      </TouchableOpacity>
-
-      {/* 2. LIKES TAB */}
-      <TouchableOpacity
-        style={styles.tabItem}
-        activeOpacity={0.8}
-        onPress={() => onSelectTab('likes')}
-      >
-        <View style={styles.iconWithBadge}>
-          <View
+          <View style={styles.iconSlot}>
+            <View
+              style={[
+                styles.iconPill,
+                activeTab === 'discover' && styles.activeIconPill,
+              ]}
+            >
+              <Ionicons
+                name={activeTab === 'discover' ? 'compass' : 'compass-outline'}
+                size={22}
+                color={colors.textDark}
+              />
+            </View>
+          </View>
+          <Text
             style={[
-              styles.iconWrapper,
-              activeTab === 'likes' && styles.activeIconWrapper,
+              styles.tabLabel,
+              activeTab === 'discover' && styles.activeTabLabel,
             ]}
           >
-            <Ionicons
-              name={activeTab === 'likes' ? 'heart' : 'heart-outline'}
-              size={22}
-              color={colors.textDark}
-            />
-          </View>
-          {/* Notification Badge: "9" */}
-          <View style={styles.likesBadge}>
-            <Text style={styles.likesBadgeText}>{likesCount}</Text>
-          </View>
-        </View>
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === 'likes' && styles.activeTabLabel,
-          ]}
-        >
-          LIKES
-        </Text>
-      </TouchableOpacity>
+            DISCOVER
+          </Text>
+        </TouchableOpacity>
 
-      {/* 3. MATCHES TAB */}
-      <TouchableOpacity
-        style={styles.tabItem}
-        activeOpacity={0.8}
-        onPress={() => onSelectTab('matches')}
-      >
-        <View style={styles.iconWithBadge}>
-          <View
+        {/* 2. LIKES TAB */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          activeOpacity={0.75}
+          onPress={() => onSelectTab('likes')}
+        >
+          <View style={styles.iconSlot}>
+            <View
+              style={[
+                styles.iconPill,
+                activeTab === 'likes' && styles.activeIconPill,
+              ]}
+            >
+              <Ionicons
+                name={activeTab === 'likes' ? 'heart' : 'heart-outline'}
+                size={22}
+                color={colors.textDark}
+              />
+            </View>
+            {/* Notification Badge: "9" */}
+            <View style={styles.likesBadge}>
+              <Text style={styles.likesBadgeText}>{likesCount}</Text>
+            </View>
+          </View>
+          <Text
             style={[
-              styles.iconWrapper,
-              activeTab === 'matches' && styles.activeIconWrapper,
+              styles.tabLabel,
+              activeTab === 'likes' && styles.activeTabLabel,
             ]}
           >
-            <Ionicons
-              name={
-                activeTab === 'matches'
-                  ? 'chatbubble-ellipses'
-                  : 'chatbubble-ellipses-outline'
-              }
-              size={22}
-              color={colors.textDark}
-            />
-          </View>
-          {/* Yellow Notification Dot */}
-          {hasUnreadMatches && <View style={styles.matchesDot} />}
-        </View>
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === 'matches' && styles.activeTabLabel,
-          ]}
-        >
-          MATCHES
-        </Text>
-      </TouchableOpacity>
+            LIKES
+          </Text>
+        </TouchableOpacity>
 
-      {/* 4. PROFILE TAB */}
-      <TouchableOpacity
-        style={styles.tabItem}
-        activeOpacity={0.8}
-        onPress={() => onSelectTab('profile')}
-      >
-        <View
-          style={[
-            styles.iconWrapper,
-            activeTab === 'profile' && styles.activeIconWrapper,
-          ]}
+        {/* 3. MATCHES TAB */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          activeOpacity={0.75}
+          onPress={() => onSelectTab('matches')}
         >
-          <Ionicons
-            name={activeTab === 'profile' ? 'person-circle' : 'person-circle-outline'}
-            size={24}
-            color={colors.textDark}
-          />
-        </View>
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === 'profile' && styles.activeTabLabel,
-          ]}
+          <View style={styles.iconSlot}>
+            <View
+              style={[
+                styles.iconPill,
+                activeTab === 'matches' && styles.activeIconPill,
+              ]}
+            >
+              <Ionicons
+                name={
+                  activeTab === 'matches'
+                    ? 'chatbubble-ellipses'
+                    : 'chatbubble-ellipses-outline'
+                }
+                size={22}
+                color={colors.textDark}
+              />
+            </View>
+            {/* Yellow Notification Dot */}
+            {hasUnreadMatches && <View style={styles.matchesDot} />}
+          </View>
+          <Text
+            style={[
+              styles.tabLabel,
+              activeTab === 'matches' && styles.activeTabLabel,
+            ]}
+          >
+            MATCHES
+          </Text>
+        </TouchableOpacity>
+
+        {/* 4. PROFILE TAB */}
+        <TouchableOpacity
+          style={styles.tabItem}
+          activeOpacity={0.75}
+          onPress={() => onSelectTab('profile')}
         >
-          PROFILE
-        </Text>
-      </TouchableOpacity>
+          <View style={styles.iconSlot}>
+            <View
+              style={[
+                styles.iconPill,
+                activeTab === 'profile' && styles.activeIconPill,
+              ]}
+            >
+              <Ionicons
+                name={
+                  activeTab === 'profile'
+                    ? 'person-circle'
+                    : 'person-circle-outline'
+                }
+                size={23}
+                color={colors.textDark}
+              />
+            </View>
+          </View>
+          <Text
+            style={[
+              styles.tabLabel,
+              activeTab === 'profile' && styles.activeTabLabel,
+            ]}
+          >
+            PROFILE
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  navBarContainer: {
-    height: 70,
+  navBarWrapper: {
+    position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 9999,
+    width: '100%',
     backgroundColor: '#FAF7F2',
     borderTopWidth: 1.5,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#EBE7DF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navBarContainer: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    height: 80,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     paddingHorizontal: 8,
-    paddingBottom: 6,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-    minWidth: 70,
-    gap: 2,
-  },
-  iconWithBadge: {
-    position: 'relative',
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrapper: {
-    width: 44,
+  iconSlot: {
+    width: 52,
     height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  iconPill: {
+    width: 50,
+    height: 30,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
-  activeIconWrapper: {
+  activeIconPill: {
     backgroundColor: colors.accentYellow,
-    borderWidth: 1.8,
-    borderColor: colors.borderBlack,
   },
   tabLabel: {
     fontSize: 10,
     fontFamily: typography.bodyExtraBold,
-    color: '#6B7280',
-    letterSpacing: 0.6,
+    color: '#71717A',
+    letterSpacing: 0.8,
+    marginTop: 4,
+    lineHeight: 13,
   },
   activeTabLabel: {
     color: colors.textDark,
@@ -198,11 +223,11 @@ const styles = StyleSheet.create({
   likesBadge: {
     position: 'absolute',
     top: -2,
-    right: 2,
+    right: 4,
     backgroundColor: colors.primaryPink,
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
-    borderRadius: 8,
+    borderRadius: 999,
     minWidth: 16,
     height: 16,
     alignItems: 'center',
@@ -213,16 +238,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 9,
     fontFamily: typography.bodyExtraBold,
+    lineHeight: 11,
   },
   matchesDot: {
     position: 'absolute',
-    top: 0,
-    right: 6,
+    top: 1,
+    right: 8,
     backgroundColor: colors.accentYellow,
     borderWidth: 1.2,
     borderColor: colors.borderBlack,
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });

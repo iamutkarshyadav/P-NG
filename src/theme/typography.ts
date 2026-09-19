@@ -11,6 +11,22 @@ export const typography = {
   bodySemiBold: 'PlusJakartaSans_600SemiBold',
   bodyBold: 'PlusJakartaSans_700Bold',
   bodyExtraBold: 'PlusJakartaSans_800ExtraBold',
+
+  // Semantic mappings for UI continuity
+  badge: 'PlusJakartaSans_800ExtraBold',
+  pill: 'PlusJakartaSans_800ExtraBold',
+  chip: 'PlusJakartaSans_700Bold',
+  itemTitle: 'PlusJakartaSans_700Bold',
+  helperText: 'PlusJakartaSans_500Medium',
+
+  fonts: {
+    black: 'Anton_400Regular',
+    bold: 'PlusJakartaSans_700Bold',
+    extraBold: 'PlusJakartaSans_800ExtraBold',
+    semiBold: 'PlusJakartaSans_600SemiBold',
+    medium: 'PlusJakartaSans_500Medium',
+    regular: 'PlusJakartaSans_400Regular',
+  },
 };
 
 export const fontStyles = StyleSheet.create({

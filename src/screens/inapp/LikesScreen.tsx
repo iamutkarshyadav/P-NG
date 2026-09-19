@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, {
@@ -17,6 +18,7 @@ import Svg, {
 } from 'react-native-svg';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../services/authDb';
 
@@ -265,12 +267,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 16,
     paddingTop: 6,
-    paddingBottom: 28,
+    paddingBottom: Platform.OS === 'ios' ? 95 : 85,
     alignItems: 'center',
   },
   container: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     alignItems: 'center',
     gap: 12,
   },

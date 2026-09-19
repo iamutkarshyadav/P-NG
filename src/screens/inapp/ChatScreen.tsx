@@ -21,6 +21,7 @@ import Svg, {
 } from 'react-native-svg';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
 import { DotGridBackground } from '../../components/DotGridBackground';
 import { UserAccount } from '../../services/authDb';
@@ -585,6 +586,9 @@ const styles = StyleSheet.create({
 
   /* Top Bar */
   topHeaderBar: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -629,6 +633,9 @@ const styles = StyleSheet.create({
 
   /* Scroll Content */
   scrollContent: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 24,
@@ -892,10 +899,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   unlockBtnText: {
-    fontSize: 13,
-    fontFamily: typography.headline,
+    fontSize: 12.5,
+    fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
   },
   ephemeralSubtitle: {
     fontSize: 11.5,
@@ -978,7 +985,7 @@ const styles = StyleSheet.create({
   },
   audioPingBrand: {
     fontSize: 10,
-    fontFamily: typography.headline,
+    fontFamily: typography.bodyExtraBold,
     color: colors.accentYellow,
     letterSpacing: 0.5,
   },
@@ -998,13 +1005,16 @@ const styles = StyleSheet.create({
   },
   promptText: {
     fontSize: 12.5,
-    fontFamily: typography.headline,
+    fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
 
   /* Bottom Input Bar */
   inputBarContainer: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,

@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
@@ -21,9 +22,11 @@ import Svg, {
 } from 'react-native-svg';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
+import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
 import { UserAccount, authDb } from '../services/authDb';
 
 interface OnboardingLocationScreenProps {
@@ -165,189 +168,183 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-          {/* 2. Step Badge Pill */}
-          <View style={styles.stepBadgeWrapper}>
-            <BrutalBox
-              backgroundColor={colors.accentYellow}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.stepBadgeContent}
-            >
-              <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
-              <Text style={styles.stepBadgeText}>
-                STEP 08 / 08 • THE FINAL STEP
-              </Text>
-            </BrutalBox>
-          </View>
-
-          {/* 3. Headline & Subtitle */}
-          <View style={styles.headlineWrapper}>
-            <Text style={styles.headlineTitle}>WHERE SHOULD WE LOOK?</Text>
-            <Text style={styles.subtitleText}>
-              We only ever show others a rough distance, never your exact location.
-            </Text>
-          </View>
-
-          {/* 4. Radar Map Graphic Card */}
-          <View style={styles.radarCardWrapper}>
-            <BrutalBox
-              backgroundColor={colors.lavender}
-              borderColor={colors.borderBlack}
-              borderWidth={2.6}
-              borderRadius={20}
-              shadowOffset={{ x: 3.5, y: 3.5 }}
-              overflow="visible"
-              style={styles.fullWidth}
-              contentStyle={styles.radarCardContent}
-            >
-              {/* Top Right "POP RADAR" Angled Badge */}
-              <View style={styles.popRadarBadgeWrapper}>
-                <View style={styles.popRadarBadge}>
-                  <MaterialCommunityIcons name="lightning-bolt" size={13} color="#FFE600" />
-                  <Text style={styles.popRadarText}>POP RADAR</Text>
-                </View>
-              </View>
-
-              {/* Floating "YOU ARE HERE" Pill */}
-              <View style={styles.youAreHerePill}>
-                <View style={styles.redDot} />
-                <Text style={styles.youAreHereText}>
-                  {selectedCity ? selectedCity.toUpperCase() : 'YOU ARE HERE'}
+          <View style={styles.contentSection}>
+            {/* 2. Step Badge Pill */}
+            <View style={styles.stepBadgeWrapper}>
+              <BrutalBox
+                backgroundColor={colors.accentYellow}
+                borderColor={colors.borderBlack}
+                borderWidth={2.2}
+                borderRadius={999}
+                shadowOffset={{ x: 2.2, y: 2.2 }}
+                contentStyle={styles.stepBadgeContent}
+              >
+                <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
+                <Text style={styles.stepBadgeText}>
+                  STEP 08 / 08 • THE FINAL STEP
                 </Text>
-              </View>
+              </BrutalBox>
+            </View>
 
-              {/* Vector Radar Illustration with Center Mascot */}
-              <PopRadarIllustration />
-            </BrutalBox>
-          </View>
-
-          {/* 5. "YOUR PRIVACY FIRST" Card */}
-          <View style={styles.privacyCardOuterWrapper}>
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2.6}
-              borderRadius={20}
-              shadowOffset={{ x: 3.5, y: 3.5 }}
-              overflow="visible"
-              style={styles.fullWidth}
-              contentStyle={styles.privacyCardContent}
-            >
-              {/* Floating Yellow Privacy Badge */}
-              <View style={styles.privacyBadgeWrapper}>
-                <View style={styles.privacyBadge}>
-                  <Text style={styles.privacyBadgeText}>YOUR PRIVACY FIRST</Text>
-                </View>
-              </View>
-
-              {/* Row 1: Distance In Buckets */}
-              <View style={styles.privacyRow}>
-                <View style={[styles.privacyIconBox, { backgroundColor: colors.accentYellow }]}>
-                  <MaterialCommunityIcons name="ruler" size={18} color={colors.textDark} />
-                </View>
-                <View style={styles.privacyRowTextCol}>
-                  <Text style={styles.privacyRowTitle}>DISTANCE IN BUCKETS</Text>
-                  <Text style={styles.privacyRowDesc}>
-                    Under 5 km, never an exact street or precise street address.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Hairline Divider */}
-              <View style={styles.rowDivider} />
-
-              {/* Row 2: Never Shared */}
-              <View style={styles.privacyRow}>
-                <View style={[styles.privacyIconBox, { backgroundColor: '#FFD8E4' }]}>
-                  <Feather name="lock" size={17} color="#E51760" />
-                </View>
-                <View style={styles.privacyRowTextCol}>
-                  <Text style={styles.privacyRowTitle}>NEVER SHARED</Text>
-                  <Text style={styles.privacyRowDesc}>
-                    No one ever sees your GPS coordinates or live location trail.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Hairline Divider */}
-              <View style={styles.rowDivider} />
-
-              {/* Row 3: Change Anytime */}
-              <View style={styles.privacyRow}>
-                <View style={[styles.privacyIconBox, { backgroundColor: colors.lavender }]}>
-                  <Ionicons name="sync" size={18} color="#4338CA" />
-                </View>
-                <View style={styles.privacyRowTextCol}>
-                  <Text style={styles.privacyRowTitle}>CHANGE ANYTIME</Text>
-                  <Text style={styles.privacyRowDesc}>
-                    Switch your neighborhood or pause discovery whenever you want.
-                  </Text>
-                </View>
-              </View>
-            </BrutalBox>
-          </View>
-
-          {/* 6. Action Buttons */}
-          <View style={styles.actionButtonsContainer}>
-            {/* Primary "⚡ ALLOW LOCATION" Button */}
-            <BrutalBox
-              backgroundColor={locationAllowed ? '#86EFAC' : colors.accentYellow}
-              borderColor={colors.borderBlack}
-              borderWidth={2.4}
-              borderRadius={18}
-              shadowOffset={{ x: 3, y: 3 }}
-              onPress={handleAllowLocation}
-              style={styles.fullWidth}
-              contentStyle={styles.allowLocationContent}
-            >
-              <MaterialCommunityIcons
-                name={locationAllowed ? 'check-bold' : 'lightning-bolt'}
-                size={20}
-                color={colors.textDark}
-              />
-              <Text style={styles.allowLocationText}>
-                {locationAllowed ? 'LOCATION ENABLED' : 'ALLOW LOCATION'}
+            {/* 3. Headline & Subtitle */}
+            <View style={styles.headlineWrapper}>
+              <Text style={styles.headlineTitle}>WHERE SHOULD WE LOOK?</Text>
+              <Text style={styles.subtitleText}>
+                We only ever show others a rough distance, never your exact location.
               </Text>
-            </BrutalBox>
+            </View>
 
-            {/* Secondary "🏙️ PICK MY CITY INSTEAD" Button */}
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={18}
-              shadowOffset={{ x: 2.8, y: 2.8 }}
-              onPress={handlePickCity}
-              style={styles.fullWidth}
-              contentStyle={styles.pickCityContent}
-            >
-              <MaterialCommunityIcons name="city-variant" size={18} color="#4B5563" />
-              <Text style={styles.pickCityText}>
-                {selectedCity ? `CITY: ${selectedCity}` : 'PICK MY CITY INSTEAD'}
-              </Text>
-            </BrutalBox>
+            {/* 4. Radar Map Graphic Card */}
+            <View style={styles.radarCardWrapper}>
+              <BrutalBox
+                backgroundColor={colors.lavender}
+                borderColor={colors.borderBlack}
+                borderWidth={2.6}
+                borderRadius={20}
+                shadowOffset={{ x: 3.5, y: 3.5 }}
+                overflow="visible"
+                style={styles.fullWidth}
+                contentStyle={styles.radarCardContent}
+              >
+                {/* Top Right "POP RADAR" Angled Badge */}
+                <View style={styles.popRadarBadgeWrapper}>
+                  <View style={styles.popRadarBadge}>
+                    <MaterialCommunityIcons name="lightning-bolt" size={13} color="#FFE600" />
+                    <Text style={styles.popRadarText}>POP RADAR</Text>
+                  </View>
+                </View>
+
+                {/* Floating "YOU ARE HERE" Pill */}
+                <View style={styles.youAreHerePill}>
+                  <View style={styles.redDot} />
+                  <Text style={styles.youAreHereText}>
+                    {selectedCity ? selectedCity.toUpperCase() : 'YOU ARE HERE'}
+                  </Text>
+                </View>
+
+                {/* Vector Radar Illustration with Center Mascot */}
+                <PopRadarIllustration />
+              </BrutalBox>
+            </View>
+
+            {/* 5. "YOUR PRIVACY FIRST" Card */}
+            <View style={styles.privacyCardOuterWrapper}>
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.6}
+                borderRadius={20}
+                shadowOffset={{ x: 3.5, y: 3.5 }}
+                overflow="visible"
+                style={styles.fullWidth}
+                contentStyle={styles.privacyCardContent}
+              >
+                {/* Floating Yellow Privacy Badge */}
+                <View style={styles.privacyBadgeWrapper}>
+                  <View style={styles.privacyBadge}>
+                    <Text style={styles.privacyBadgeText}>YOUR PRIVACY FIRST</Text>
+                  </View>
+                </View>
+
+                {/* Row 1: Distance In Buckets */}
+                <View style={styles.privacyRow}>
+                  <View style={[styles.privacyIconBox, { backgroundColor: colors.accentYellow }]}>
+                    <MaterialCommunityIcons name="ruler" size={18} color={colors.textDark} />
+                  </View>
+                  <View style={styles.privacyRowTextCol}>
+                    <Text style={styles.privacyRowTitle}>DISTANCE IN BUCKETS</Text>
+                    <Text style={styles.privacyRowDesc}>
+                      Under 5 km, never an exact street or precise street address.
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Hairline Divider */}
+                <View style={styles.rowDivider} />
+
+                {/* Row 2: Never Shared */}
+                <View style={styles.privacyRow}>
+                  <View style={[styles.privacyIconBox, { backgroundColor: '#FFD8E4' }]}>
+                    <Feather name="lock" size={17} color="#E51760" />
+                  </View>
+                  <View style={styles.privacyRowTextCol}>
+                    <Text style={styles.privacyRowTitle}>NEVER SHARED</Text>
+                    <Text style={styles.privacyRowDesc}>
+                      No one ever sees your GPS coordinates or live location trail.
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Hairline Divider */}
+                <View style={styles.rowDivider} />
+
+                {/* Row 3: Change Anytime */}
+                <View style={styles.privacyRow}>
+                  <View style={[styles.privacyIconBox, { backgroundColor: colors.lavender }]}>
+                    <Ionicons name="sync" size={18} color="#4338CA" />
+                  </View>
+                  <View style={styles.privacyRowTextCol}>
+                    <Text style={styles.privacyRowTitle}>CHANGE ANYTIME</Text>
+                    <Text style={styles.privacyRowDesc}>
+                      Switch your neighborhood or pause discovery whenever you want.
+                    </Text>
+                  </View>
+                </View>
+              </BrutalBox>
+            </View>
+
+            {/* 6. Action Buttons */}
+            <View style={styles.actionButtonsContainer}>
+              {/* Primary "⚡ ALLOW LOCATION" Button */}
+              <BrutalBox
+                backgroundColor={locationAllowed ? '#86EFAC' : colors.accentYellow}
+                borderColor={colors.borderBlack}
+                borderWidth={2.4}
+                borderRadius={18}
+                shadowOffset={{ x: 3, y: 3 }}
+                onPress={handleAllowLocation}
+                style={styles.fullWidth}
+                contentStyle={styles.allowLocationContent}
+              >
+                <MaterialCommunityIcons
+                  name={locationAllowed ? 'check-bold' : 'lightning-bolt'}
+                  size={20}
+                  color={colors.textDark}
+                />
+                <Text style={styles.allowLocationText}>
+                  {locationAllowed ? 'LOCATION ENABLED' : 'ALLOW LOCATION'}
+                </Text>
+              </BrutalBox>
+
+              {/* Secondary "🏙️ PICK MY CITY INSTEAD" Button */}
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.2}
+                borderRadius={18}
+                shadowOffset={{ x: 2.8, y: 2.8 }}
+                onPress={handlePickCity}
+                style={styles.fullWidth}
+                contentStyle={styles.pickCityContent}
+              >
+                <MaterialCommunityIcons name="city-variant" size={18} color="#4B5563" />
+                <Text style={styles.pickCityText}>
+                  {selectedCity ? `CITY: ${selectedCity}` : 'PICK MY CITY INSTEAD'}
+                </Text>
+              </BrutalBox>
+            </View>
           </View>
         </View>
       </ScrollView>
 
-      {/* 7. Bottom CTA Button */}
-      <View style={styles.bottomCtaContainer}>
-        <BrutalBox
-          backgroundColor={colors.accentYellow}
-          borderColor={colors.borderBlack}
-          borderWidth={2.6}
-          borderRadius={999}
-          shadowOffset={{ x: 3.5, y: 3.5 }}
-          onPress={handleFinish}
-          disabled={isSaving}
-          contentStyle={styles.nextButtonContent}
-        >
-          <Text style={styles.nextButtonText}>
-            {isSaving ? 'LAUNCHING...' : 'NEXT ➔'}
-          </Text>
-        </BrutalBox>
+      {/* 7. Pinned Bottom Action Buttons */}
+      <View style={styles.bottomBarWrapper}>
+        <OnboardingBottomBar
+          onNext={handleFinish}
+          onSkip={() => handleFinish()}
+          nextText={isSaving ? 'LAUNCHING...' : 'ENTER P!NG ➔'}
+          isSaving={isSaving}
+        />
       </View>
     </SafeAreaView>
   );
@@ -412,17 +409,29 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 110,
+    paddingTop: 8,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   container: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     alignItems: 'flex-start',
-    gap: 14,
+    gap: 20,
+  },
+  bottomBarWrapper: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
+  },
+  contentSection: {
+    width: '100%',
+    alignItems: 'flex-start',
+    gap: 18,
   },
   fullWidth: {
     width: '100%',
@@ -628,24 +637,5 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
     letterSpacing: 0.4,
-  },
-
-  /* Bottom CTA */
-  bottomCtaContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-  },
-  nextButtonContent: {
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButtonText: {
-    fontSize: 22,
-    fontFamily: typography.headline,
-    color: colors.textDark,
-    letterSpacing: 0.8,
   },
 });

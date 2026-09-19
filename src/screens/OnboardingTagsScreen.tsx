@@ -7,14 +7,17 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
+import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
 import { UserAccount, authDb } from '../services/authDb';
 
 interface OnboardingTagsScreenProps {
@@ -117,130 +120,123 @@ export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-          {/* 2. Step Badge Pill */}
-          <View style={styles.stepBadgeWrapper}>
-            <BrutalBox
-              backgroundColor={colors.accentYellow}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.stepBadgeContent}
-            >
-              <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
-              <Text style={styles.stepBadgeText}>
-                STEP 07 / 08 • VIBE TAGS
+          <View style={styles.contentSection}>
+            {/* 2. Step Badge Pill */}
+            <View style={styles.stepBadgeWrapper}>
+              <BrutalBox
+                backgroundColor={colors.accentYellow}
+                borderColor={colors.borderBlack}
+                borderWidth={2.2}
+                borderRadius={999}
+                shadowOffset={{ x: 2.2, y: 2.2 }}
+                contentStyle={styles.stepBadgeContent}
+              >
+                <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
+                <Text style={styles.stepBadgeText}>
+                  STEP 07 / 08 • VIBE TAGS
+                </Text>
+              </BrutalBox>
+            </View>
+
+            {/* 3. Headline & Subtitle */}
+            <View style={styles.headlineWrapper}>
+              <Text style={styles.headlineTitle}>WHAT ARE YOU INTO?</Text>
+              <Text style={styles.subtitleText}>
+                Pick up to 8 tags. These help us match your vibe.
               </Text>
-            </BrutalBox>
-          </View>
+            </View>
 
-          {/* 3. Headline & Subtitle */}
-          <View style={styles.headlineWrapper}>
-            <Text style={styles.headlineTitle}>WHAT ARE YOU INTO?</Text>
-            <Text style={styles.subtitleText}>
-              Pick up to 8 tags. These help us match your vibe.
-            </Text>
-          </View>
-
-          {/* 4. Category Filter Buttons */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesRow}
-          >
-            {CATEGORIES.map((cat) => {
-              const isActive = activeCategory === cat;
-              return (
-                <BrutalBox
-                  key={cat}
-                  backgroundColor={isActive ? colors.primaryPink : colors.cardWhite}
-                  borderColor={colors.borderBlack}
-                  borderWidth={2.2}
-                  borderRadius={999}
-                  shadowOffset={{ x: 2.5, y: 2.5 }}
-                  onPress={() => setActiveCategory(cat)}
-                  contentStyle={styles.categoryPillContent}
-                >
-                  <Text
-                    style={[
-                      styles.categoryPillText,
-                      isActive && styles.categoryPillTextActive,
-                    ]}
-                  >
-                    {cat}
-                  </Text>
-                </BrutalBox>
-              );
-            })}
-          </ScrollView>
-
-          {/* 5. Vibe Tags Cloud / Flow */}
-          <View style={styles.tagsCloudContainer}>
-            {filteredTags.map((tag) => {
-              const isSelected = selectedTagIds.includes(tag.id);
-              return (
-                <View key={tag.id} style={styles.tagPillWrapper}>
+            {/* 4. Category Filter Buttons */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesRow}
+            >
+              {CATEGORIES.map((cat) => {
+                const isActive = activeCategory === cat;
+                return (
                   <BrutalBox
-                    backgroundColor={isSelected ? colors.accentYellow : tag.tint || '#FFFFFF'}
+                    key={cat}
+                    backgroundColor={isActive ? colors.primaryPink : colors.cardWhite}
                     borderColor={colors.borderBlack}
                     borderWidth={2.2}
                     borderRadius={999}
-                    shadowOffset={{ x: 2.8, y: 2.8 }}
-                    onPress={() => handleToggleTag(tag.id)}
-                    contentStyle={styles.tagPillContent}
+                    shadowOffset={{ x: 2.5, y: 2.5 }}
+                    onPress={() => setActiveCategory(cat)}
+                    contentStyle={styles.categoryPillContent}
                   >
-                    <Text style={styles.tagEmoji}>{tag.emoji}</Text>
-                    <Text style={styles.tagNameText}>{tag.name}</Text>
-                    {isSelected && (
-                      <Feather
-                        name="check"
-                        size={15}
-                        color={colors.textDark}
-                        style={styles.checkIcon}
-                      />
-                    )}
+                    <Text
+                      style={[
+                        styles.categoryPillText,
+                        isActive && styles.categoryPillTextActive,
+                      ]}
+                    >
+                      {cat}
+                    </Text>
                   </BrutalBox>
-                </View>
-              );
-            })}
-          </View>
+                );
+              })}
+            </ScrollView>
 
-          {/* 6. Tip Banner */}
-          <BrutalBox
-            backgroundColor={colors.lavender}
-            borderColor={colors.borderBlack}
-            borderWidth={2.4}
-            borderRadius={18}
-            shadowOffset={{ x: 3.5, y: 3.5 }}
-            style={styles.fullWidth}
-            contentStyle={styles.tipCardContent}
-          >
-            <View style={styles.tipBoltBadge}>
-              <MaterialCommunityIcons name="lightning-bolt" size={17} color={colors.textDark} />
+            {/* 5. Vibe Tags Cloud / Flow */}
+            <View style={styles.tagsCloudContainer}>
+              {filteredTags.map((tag) => {
+                const isSelected = selectedTagIds.includes(tag.id);
+                return (
+                  <View key={tag.id} style={styles.tagPillWrapper}>
+                    <BrutalBox
+                      backgroundColor={isSelected ? colors.accentYellow : tag.tint || '#FFFFFF'}
+                      borderColor={colors.borderBlack}
+                      borderWidth={2.2}
+                      borderRadius={999}
+                      shadowOffset={{ x: 2.8, y: 2.8 }}
+                      onPress={() => handleToggleTag(tag.id)}
+                      contentStyle={styles.tagPillContent}
+                    >
+                      <Text style={styles.tagEmoji}>{tag.emoji}</Text>
+                      <Text style={styles.tagNameText}>{tag.name}</Text>
+                      {isSelected && (
+                        <Feather
+                          name="check"
+                          size={15}
+                          color={colors.textDark}
+                          style={styles.checkIcon}
+                        />
+                      )}
+                    </BrutalBox>
+                  </View>
+                );
+              })}
             </View>
-            <Text style={styles.tipText}>
-              Selected tags boost shared interest matching by 80%.
-            </Text>
-          </BrutalBox>
+
+            {/* 6. Tip Banner */}
+            <BrutalBox
+              backgroundColor={colors.lavender}
+              borderColor={colors.borderBlack}
+              borderWidth={2.4}
+              borderRadius={18}
+              shadowOffset={{ x: 3.5, y: 3.5 }}
+              style={styles.fullWidth}
+              contentStyle={styles.tipCardContent}
+            >
+              <View style={styles.tipBoltBadge}>
+                <MaterialCommunityIcons name="lightning-bolt" size={17} color={colors.textDark} />
+              </View>
+              <Text style={styles.tipText}>
+                Selected tags boost shared interest matching by 80%.
+              </Text>
+            </BrutalBox>
+          </View>
         </View>
       </ScrollView>
 
-      {/* 7. Bottom CTA Button */}
-      <View style={styles.bottomCtaContainer}>
-        <BrutalBox
-          backgroundColor={colors.accentYellow}
-          borderColor={colors.borderBlack}
-          borderWidth={2.6}
-          borderRadius={999}
-          shadowOffset={{ x: 3.5, y: 3.5 }}
-          onPress={handleNext}
-          disabled={isSaving}
-          contentStyle={styles.nextButtonContent}
-        >
-          <Text style={styles.nextButtonText}>
-            {isSaving ? 'SAVING...' : 'NEXT ➔'}
-          </Text>
-        </BrutalBox>
+      {/* 7. Pinned Bottom Action Buttons */}
+      <View style={styles.bottomBarWrapper}>
+        <OnboardingBottomBar
+          onNext={handleNext}
+          onSkip={() => handleNext()}
+          isSaving={isSaving}
+        />
       </View>
     </SafeAreaView>
   );
@@ -305,17 +301,29 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 110,
+    paddingTop: 8,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   container: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     alignItems: 'flex-start',
-    gap: 14,
+    gap: 20,
+  },
+  bottomBarWrapper: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
+  },
+  contentSection: {
+    width: '100%',
+    alignItems: 'flex-start',
+    gap: 18,
   },
   fullWidth: {
     width: '100%',
@@ -432,24 +440,5 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyBold,
     color: colors.textDark,
     lineHeight: 17,
-  },
-
-  /* Bottom CTA */
-  bottomCtaContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-  },
-  nextButtonContent: {
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButtonText: {
-    fontSize: 22,
-    fontFamily: typography.headline,
-    color: colors.textDark,
-    letterSpacing: 0.8,
   },
 });

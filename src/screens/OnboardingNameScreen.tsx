@@ -7,14 +7,18 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
+import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
 import { UserAccount, authDb } from '../services/authDb';
 
 interface OnboardingNameScreenProps {
@@ -30,8 +34,6 @@ export const OnboardingNameScreen: React.FC<OnboardingNameScreenProps> = ({
 }) => {
   const [name, setName] = useState(user.name || 'Alex');
   const [isSaving, setIsSaving] = useState(false);
-
-  const initial = name.trim().charAt(0).toUpperCase() || '?';
 
   const handleNext = async () => {
     const trimmed = name.trim();
@@ -69,161 +71,106 @@ export const OnboardingNameScreen: React.FC<OnboardingNameScreenProps> = ({
       {/* 1. Universal Neo-Brutalist Onboarding Top Header */}
       <OnboardingTopHeader onBack={onBack} user={user} />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.container}>
-          {/* 2. Step Badge & Dots Row */}
-          <View style={styles.stepBadgeRow}>
-            <BrutalBox
-              backgroundColor={colors.accentYellow}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.stepBadgeContent}
-            >
-              <Ionicons name="flash" size={13} color={colors.textDark} />
-              <Text style={styles.stepBadgeText}>STEP 02 / 08</Text>
-            </BrutalBox>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.container}>
+          <View style={styles.contentSection}>
+            {/* 2. Step Badge & Dots Row */}
+            <View style={styles.stepBadgeRow}>
+              <BrutalBox
+                backgroundColor={colors.accentYellow}
+                borderColor={colors.borderBlack}
+                borderWidth={2.2}
+                borderRadius={999}
+                shadowOffset={{ x: 2.2, y: 2.2 }}
+                contentStyle={styles.stepBadgeContent}
+              >
+                <Ionicons name="flash" size={13} color={colors.textDark} />
+                <Text style={styles.stepBadgeText}>STEP 02 / 08</Text>
+              </BrutalBox>
 
-            {/* 5 Dots: 2 filled, 3 unfilled */}
-            <View style={styles.dotsRow}>
-              <View style={[styles.dot, styles.dotFilled]} />
-              <View style={[styles.dot, styles.dotFilled]} />
-              <View style={styles.dot} />
-              <View style={styles.dot} />
-              <View style={styles.dot} />
-            </View>
-          </View>
-
-          {/* 3. Headline */}
-          <View style={styles.headlineWrapper}>
-            <Text style={styles.headlineLine1}>WHAT SHOULD</Text>
-            <Text style={styles.headlineLine2}>WE CALL YOU?</Text>
-            <Text style={styles.subtitleText}>
-              This is how you'll appear to other P!NG members.
-            </Text>
-          </View>
-
-          {/* 4. Name Input Card */}
-          <View style={styles.cardOuterWrapper}>
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2.8}
-              borderRadius={22}
-              shadowOffset={{ x: 4, y: 4 }}
-              overflow="visible"
-              style={styles.fullWidth}
-              contentStyle={styles.inputCardContent}
-            >
-              {/* Overlapping Floating Yellow Label */}
-              <View style={styles.floatingLabel}>
-                <Text style={styles.floatingLabelText}>YOUR NAME</Text>
-              </View>
-
-              {/* Input Row with Avatar Placeholder & Character Counter */}
-              <View style={styles.nameInputBox}>
-                <View style={styles.pinkAvatarPlaceholder} />
-                <TextInput
-                  style={styles.nameTextInput}
-                  value={name}
-                  onChangeText={(val) => setName(val.slice(0, 20))}
-                  placeholder="Your Name"
-                  placeholderTextColor="#888"
-                  maxLength={20}
-                  autoCapitalize="words"
-                />
-                <View style={styles.charCountPill}>
-                  <Text style={styles.charCountText}>{name.length}/20</Text>
-                </View>
-              </View>
-            </BrutalBox>
-          </View>
-
-          {/* 5. Notice Banner */}
-          <BrutalBox
-            backgroundColor={colors.lavender}
-            borderColor={colors.borderBlack}
-            borderWidth={2.4}
-            borderRadius={16}
-            shadowOffset={{ x: 3, y: 3 }}
-            style={styles.fullWidth}
-            contentStyle={styles.noticeBannerContent}
-          >
-            <Ionicons
-              name="information-circle"
-              size={20}
-              color={colors.textDark}
-            />
-            <Text style={styles.noticeBannerText}>
-              You can't change this often, so pick well.
-            </Text>
-          </BrutalBox>
-
-          {/* 6. Live Preview Card (PREVIEW CARD ID) */}
-          <BrutalBox
-            backgroundColor={colors.cardWhite}
-            borderColor={colors.borderBlack}
-            borderWidth={2.8}
-            borderRadius={22}
-            shadowOffset={{ x: 4, y: 4 }}
-            style={styles.fullWidth}
-            contentStyle={styles.previewCardContent}
-          >
-            {/* Top Label Row */}
-            <View style={styles.previewTopRow}>
-              <Text style={styles.previewCardIdLabel}>PREVIEW CARD ID</Text>
-              <View style={styles.verifiedBadgePill}>
-                <Text style={styles.verifiedBadgeText}>VERIFIED BADGE</Text>
+              {/* 5 Dots: 2 filled, 3 unfilled */}
+              <View style={styles.dotsRow}>
+                <View style={[styles.dot, styles.dotFilled]} />
+                <View style={[styles.dot, styles.dotFilled]} />
+                <View style={styles.dot} />
+                <View style={styles.dot} />
+                <View style={styles.dot} />
               </View>
             </View>
 
-            {/* Profile Avatar & Info */}
-            <View style={styles.previewProfileRow}>
-              <View style={styles.avatarWithHeartWrapper}>
-                <View style={styles.yellowAvatarCircle}>
-                  <Text style={styles.avatarInitial}>{initial}</Text>
-                </View>
-                {/* Overlapping Heart Badge */}
-                <View style={styles.avatarHeartBadge}>
-                  <Ionicons name="heart" size={10} color="#FFFFFF" />
-                </View>
-              </View>
-
-              <View style={styles.previewInfoCol}>
-                <Text style={styles.previewNameText}>
-                  {name.trim() || 'Your Name'}
-                </Text>
-                <Text style={styles.previewBioText}>
-                  Ready to make sparks fly 🔥
-                </Text>
-              </View>
+            {/* 3. Headline */}
+            <View style={styles.headlineWrapper}>
+              <Text style={styles.headlineLine1}>WHAT SHOULD</Text>
+              <Text style={styles.headlineLine2}>WE CALL YOU?</Text>
+              <Text style={styles.subtitleText}>
+                This is how you'll appear to other P!NG members.
+              </Text>
             </View>
-          </BrutalBox>
+
+            {/* 4. Name Input Card */}
+            <View style={styles.cardOuterWrapper}>
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.8}
+                borderRadius={22}
+                shadowOffset={{ x: 4, y: 4 }}
+                overflow="visible"
+                style={styles.fullWidth}
+                contentStyle={styles.inputCardContent}
+              >
+                {/* Overlapping Floating Yellow Label */}
+                <View style={styles.floatingLabel}>
+                  <Text style={styles.floatingLabelText}>YOUR NAME</Text>
+                </View>
+
+                {/* Input Row with Avatar Placeholder & Character Counter */}
+                <View style={styles.nameInputBox}>
+                  <View style={styles.pinkAvatarPlaceholder} />
+                  <TextInput
+                    style={styles.nameTextInput}
+                    value={name}
+                    onChangeText={(val) => setName(val.slice(0, 20))}
+                    placeholder="Your Name"
+                    placeholderTextColor="#888"
+                    maxLength={20}
+                    autoCapitalize="words"
+                  />
+                  <View style={styles.charCountPill}>
+                    <Text style={styles.charCountText}>{name.length}/20</Text>
+                  </View>
+                </View>
+
+                {/* Privacy Guarantee Note */}
+                <View style={styles.privacyNoteRow}>
+                  <Feather name="shield" size={13} color="#059669" />
+                  <Text style={styles.privacyNoteText}>
+                    Real identity matters on P!NG. Use your authentic first name.
+                  </Text>
+                </View>
+              </BrutalBox>
+            </View>
+          </View>
         </View>
       </ScrollView>
 
-      {/* 7. Sticky Bottom CTA Button */}
-      <View style={styles.bottomCtaContainer}>
-        <BrutalBox
-          backgroundColor={colors.accentYellow}
-          borderColor={colors.borderBlack}
-          borderWidth={2.6}
-          borderRadius={999}
-          shadowOffset={{ x: 3.5, y: 3.5 }}
-          onPress={handleNext}
-          disabled={isSaving}
-          contentStyle={styles.nextButtonContent}
-        >
-          <Text style={styles.nextButtonText}>
-            {isSaving ? 'SAVING...' : 'NEXT ➔'}
-          </Text>
-        </BrutalBox>
-      </View>
+        {/* 6. Pinned Bottom Navigation Dual Buttons */}
+        <View style={styles.bottomBarWrapper}>
+          <OnboardingBottomBar
+            onNext={handleNext}
+            onSkip={() => handleNext()}
+            isSaving={isSaving}
+          />
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -288,17 +235,29 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 110,
+    paddingTop: 8,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   container: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     alignItems: 'flex-start',
-    gap: 16,
+    gap: 20,
+  },
+  bottomBarWrapper: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
+  },
+  contentSection: {
+    width: '100%',
+    alignItems: 'flex-start',
+    gap: 18,
   },
   fullWidth: {
     width: '100%',
@@ -393,7 +352,7 @@ const styles = StyleSheet.create({
   },
   floatingLabelText: {
     fontSize: 10.5,
-    fontWeight: '900',
+    fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
     letterSpacing: 0.4,
   },
@@ -420,7 +379,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: typography.bodyBold,
     color: colors.textDark,
   },
   charCountPill: {
@@ -433,8 +392,20 @@ const styles = StyleSheet.create({
   },
   charCountText: {
     fontSize: 10.5,
-    fontWeight: '800',
+    fontFamily: typography.bodyBold,
     color: '#555',
+  },
+  privacyNoteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 4,
+  },
+  privacyNoteText: {
+    fontSize: 11.5,
+    fontFamily: typography.bodyMedium,
+    color: '#059669',
+    flex: 1,
   },
   noticeBannerContent: {
     flexDirection: 'row',
@@ -444,104 +415,8 @@ const styles = StyleSheet.create({
   },
   noticeBannerText: {
     fontSize: 12.5,
-    fontWeight: '800',
+    fontFamily: typography.bodyBold,
     color: colors.textDark,
     flex: 1,
-  },
-  previewCardContent: {
-    padding: 18,
-    gap: 14,
-  },
-  previewTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  previewCardIdLabel: {
-    fontSize: 10.5,
-    fontWeight: '900',
-    color: '#666',
-    letterSpacing: 0.5,
-  },
-  verifiedBadgePill: {
-    backgroundColor: colors.primaryPink,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: colors.borderBlack,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  verifiedBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9.5,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-  },
-  previewProfileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  avatarWithHeartWrapper: {
-    position: 'relative',
-  },
-  yellowAvatarCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.accentYellow,
-    borderWidth: 2.2,
-    borderColor: colors.borderBlack,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: colors.textDark,
-  },
-  avatarHeartBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.primaryPink,
-    borderWidth: 1.5,
-    borderColor: colors.borderBlack,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewInfoCol: {
-    flex: 1,
-    gap: 2,
-  },
-  previewNameText: {
-    fontSize: 18,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-  },
-  previewBioText: {
-    fontSize: 12.5,
-    fontFamily: typography.bodyMedium,
-    color: '#555',
-  },
-  bottomCtaContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-  },
-  nextButtonContent: {
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButtonText: {
-    fontSize: 22,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.8,
   },
 });

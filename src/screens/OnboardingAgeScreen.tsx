@@ -9,11 +9,13 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
@@ -26,19 +28,34 @@ interface OnboardingAgeScreenProps {
   onComplete: (updatedUser: UserAccount) => void;
 }
 
-const MONTHS = [
-  { num: 1, name: 'Jan' },
-  { num: 2, name: 'Feb' },
-  { num: 3, name: 'Mar' },
-  { num: 4, name: 'Apr' },
-  { num: 5, name: 'May' },
-  { num: 6, name: 'Jun' },
-  { num: 7, name: 'Jul' },
-  { num: 8, name: 'Aug' },
-  { num: 9, name: 'Sep' },
-  { num: 10, name: 'Oct' },
-  { num: 11, name: 'Nov' },
-  { num: 12, name: 'Dec' },
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const MONTH_SHORT = [
+  'JAN',
+  'FEB',
+  'MAR',
+  'APR',
+  'MAY',
+  'JUN',
+  'JUL',
+  'AUG',
+  'SEP',
+  'OCT',
+  'NOV',
+  'DEC',
 ];
 
 function getZodiacSign(month: number, day: number): string {
@@ -63,7 +80,7 @@ function getZodiacSign(month: number, day: number): string {
 }
 
 function calculateAge(year: number, month: number, day: number): number {
-  const today = new Date(2026, 8, 18); // System date
+  const today = new Date();
   let age = today.getFullYear() - year;
   const m = today.getMonth() + 1 - month;
   if (m < 0 || (m === 0 && today.getDate() < day)) {
@@ -81,20 +98,17 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
   onBack,
   onComplete,
 }) => {
-  // Committed birthdate on the screen
+  // Committed birthdate
   const [selectedYear, setSelectedYear] = useState<number>(2000);
   const [selectedMonth, setSelectedMonth] = useState<number>(5);
   const [selectedDay, setSelectedDay] = useState<number>(14);
+  const [yearInputText, setYearInputText] = useState<string>('2000');
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [tempYear, setTempYear] = useState<string>('2000');
-  const [tempMonth, setTempMonth] = useState<number>(5);
-  const [tempDay, setTempDay] = useState<number>(14);
-
+  // Confirmation Pop-up Modal State
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Modular User Name extracted from DB
+  // User first name
   const displayFirstName = useMemo(() => {
     if (!user.name) return 'THERE';
     const first = user.name.trim().split(' ')[0];
@@ -119,35 +133,92 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
     [selectedMonth, selectedDay]
   );
 
-  // Open modal and sync temporary state
-  const handleOpenModal = () => {
-    setTempYear(String(selectedYear));
-    setTempMonth(selectedMonth);
-    setTempDay(selectedDay);
-    setIsModalOpen(true);
+  // Helper to clamp day when month/year changes
+  const clampDay = (y: number, m: number, d: number) => {
+    const max = getDaysInMonth(y, m);
+    return Math.min(d, max);
   };
 
-  // Temp days in month
-  const tempNumYear = parseInt(tempYear, 10) || 2000;
-  const tempMaxDays = getDaysInMonth(tempNumYear, tempMonth);
-  const activeTempDay = Math.min(tempDay, tempMaxDays);
-
-  const handleConfirmModal = () => {
-    setSelectedYear(tempNumYear);
-    setSelectedMonth(tempMonth);
-    setSelectedDay(activeTempDay);
-    setIsModalOpen(false);
+  // Month navigation
+  const handlePrevMonth = () => {
+    const nextMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+    setSelectedMonth(nextMonth);
+    setSelectedDay((curr) => clampDay(selectedYear, nextMonth, curr));
   };
 
-  const handleNext = async () => {
+  const handleNextMonth = () => {
+    const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1;
+    setSelectedMonth(nextMonth);
+    setSelectedDay((curr) => clampDay(selectedYear, nextMonth, curr));
+  };
+
+  // Day navigation
+  const handlePrevDay = () => {
+    const maxDays = getDaysInMonth(selectedYear, selectedMonth);
+    setSelectedDay((prev) => (prev <= 1 ? maxDays : prev - 1));
+  };
+
+  const handleNextDay = () => {
+    const maxDays = getDaysInMonth(selectedYear, selectedMonth);
+    setSelectedDay((prev) => (prev >= maxDays ? 1 : prev + 1));
+  };
+
+  // Year navigation
+  const handlePrevYear = () => {
+    const nextYear = Math.max(selectedYear - 1, 1920);
+    setSelectedYear(nextYear);
+    setYearInputText(String(nextYear));
+    setSelectedDay((curr) => clampDay(nextYear, selectedMonth, curr));
+  };
+
+  const handleNextYear = () => {
+    const currentYear = new Date().getFullYear();
+    const nextYear = Math.min(selectedYear + 1, currentYear);
+    setSelectedYear(nextYear);
+    setYearInputText(String(nextYear));
+    setSelectedDay((curr) => clampDay(nextYear, selectedMonth, curr));
+  };
+
+  const handleYearInput = (text: string) => {
+    const clean = text.replace(/[^0-9]/g, '').slice(0, 4);
+    setYearInputText(clean);
+    if (clean.length === 4) {
+      const parsed = parseInt(clean, 10);
+      const currentYear = new Date().getFullYear();
+      if (!isNaN(parsed) && parsed >= 1920 && parsed <= currentYear) {
+        setSelectedYear(parsed);
+        setSelectedDay((currDay) => clampDay(parsed, selectedMonth, currDay));
+      }
+    }
+  };
+
+  const handleYearBlur = () => {
+    const parsed = parseInt(yearInputText, 10);
+    const currentYear = new Date().getFullYear();
+    if (isNaN(parsed) || parsed < 1920 || parsed > currentYear) {
+      setYearInputText(String(selectedYear));
+    } else {
+      setSelectedYear(parsed);
+      setSelectedDay((currDay) => clampDay(parsed, selectedMonth, currDay));
+    }
+  };
+
+  // Trigger Confirmation Modal from Bottom Bar or Date Selector
+  const handleOpenConfirmModal = () => {
+    setShowConfirmModal(true);
+  };
+
+  // Save profile upon user confirmation in popup
+  const handleFinalConfirm = async () => {
     if (!is18Plus) {
       Alert.alert(
-        'Age Restriction',
+        'Age Restriction (18+)',
         'You must be at least 18 years old to join P!NG.'
       );
       return;
     }
 
+    setShowConfirmModal(false);
     setIsSaving(true);
     try {
       const updated = await authDb.updateUserProfile(user.id, {
@@ -179,158 +250,221 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-          {/* 2. Step Badge Pill */}
-          <View style={styles.stepBadgeWrapper}>
-            <BrutalBox
-              backgroundColor={colors.accentYellow}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.stepBadgeContent}
-            >
-              <MaterialCommunityIcons name="cake-variant" size={15} color={colors.textDark} />
-              <Text style={styles.stepBadgeText}>
-                STEP 01 / 08 • THE AGE CHECK
-              </Text>
-            </BrutalBox>
-          </View>
-
-          {/* 3. Modular Headline Text with Bulletproof 5px Black Border Underline on BIRTHDAY? */}
-          <View style={styles.headlineWrapper}>
-            <Text style={styles.headlineLine1}>HEY {displayFirstName},</Text>
-            <Text style={styles.headlineLine2}>WHEN'S YOUR</Text>
-            <View style={styles.birthdayUnderlineWrapper}>
-              <Text style={styles.headlineBirthday}>BIRTHDAY?</Text>
-            </View>
-            <Text style={styles.subtitleText}>
-              Your age is public. Your birth date stays strictly private.
-            </Text>
-          </View>
-
-          {/* 4. Date of Birth Card with Tap-to-Open Popup */}
-          <View style={styles.cardOuterWrapper}>
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2.8}
-              borderRadius={22}
-              shadowOffset={{ x: 4, y: 4 }}
-              overflow="visible"
-              style={styles.fullWidth}
-              contentStyle={styles.dobCardContent}
-            >
-              {/* Overlapping Floating Yellow Shield Label (Uncropped) */}
-              <View style={styles.floatingShieldLabel}>
-                <Ionicons name="shield-checkmark" size={13} color={colors.textDark} />
-                <Text style={styles.floatingShieldText}>
-                  DATE OF BIRTH (18+ AGE GATE)
-                </Text>
-              </View>
-
-              {/* Interactive Date Box: Tapping opens the Date Picker Popup */}
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={handleOpenModal}
-                style={styles.dateSelectorBox}
+          <View style={styles.contentSection}>
+            {/* 2. Step Badge Pill */}
+            <View style={styles.stepBadgeWrapper}>
+              <BrutalBox
+                backgroundColor={colors.accentYellow}
+                borderColor={colors.borderBlack}
+                borderWidth={2.2}
+                borderRadius={999}
+                shadowOffset={{ x: 2.2, y: 2.2 }}
+                contentStyle={styles.stepBadgeContent}
               >
-                <View style={styles.calendarIconSquare}>
-                  <Feather name="calendar" size={20} color={colors.primaryPink} />
-                </View>
+                <MaterialCommunityIcons name="cake-variant" size={15} color={colors.textDark} />
+                <Text style={styles.stepBadgeText}>
+                  STEP 01 / 08 • THE AGE CHECK
+                </Text>
+              </BrutalBox>
+            </View>
 
-                <View style={styles.dateTextCol}>
-                  <Text style={styles.selectedDateLabel}>SELECTED DATE (TAP TO CHANGE)</Text>
-                  <Text style={styles.dateValueText}>{formattedDateStr}</Text>
-                </View>
+            {/* 3. Modular Headline Text with 5px Black Underline */}
+            <View style={styles.headlineWrapper}>
+              <Text style={styles.headlineLine1}>HEY {displayFirstName},</Text>
+              <Text style={styles.headlineLine2}>WHEN'S YOUR</Text>
+              <View style={styles.birthdayUnderlineWrapper}>
+                <Text style={styles.headlineBirthday}>BIRTHDAY?</Text>
+              </View>
+              <Text style={styles.subtitleText}>
+                Your age is public. Your birth date stays strictly private.
+              </Text>
+            </View>
 
-                {/* Show 18+ adult badge when valid */}
-                {is18Plus && (
-                  <View style={styles.agePillGreen}>
-                    <Text style={styles.agePillGreenText}>{age} (18+)</Text>
-                    <Ionicons name="checkmark-circle" size={15} color="#027A48" />
-                  </View>
-                )}
-
-                {/* Tap indicator arrow */}
-                <Ionicons name="chevron-down-circle" size={20} color="#666" style={{ marginLeft: 4 }} />
-              </TouchableOpacity>
-
-              {/* Warning banner when underage: No confusing pills in front of the date, just this clear warning */}
-              {!is18Plus && (
-                <View style={styles.underageWarningBanner}>
-                  <Ionicons name="warning" size={16} color="#FFFFFF" />
-                  <Text style={styles.underageWarningText}>
-                    YOU MUST BE 18+ TO USE P!NG
+            {/* 4. CLEAN DATE SELECTOR CARD */}
+            <View style={styles.cardOuterWrapper}>
+              <BrutalBox
+                backgroundColor={colors.cardWhite}
+                borderColor={colors.borderBlack}
+                borderWidth={2.8}
+                borderRadius={22}
+                shadowOffset={{ x: 4, y: 4 }}
+                overflow="visible"
+                style={styles.fullWidth}
+                contentStyle={styles.dateCardContent}
+              >
+                {/* Floating Shield Badge */}
+                <View style={styles.floatingShieldLabel}>
+                  <Ionicons name="calendar-outline" size={13} color={colors.textDark} />
+                  <Text style={styles.floatingShieldText}>
+                    DATE OF BIRTH (18+ AGE GATE)
                   </Text>
                 </View>
-              )}
 
-              {/* Privacy Subtext */}
-              <View style={styles.privacyRow}>
-                <Feather name="lock" size={13} color={colors.primaryPink} />
-                <Text style={styles.privacyText}>
-                  NEVER SHOWN ON YOUR DATING CARDS
+                {/* Big Clean Date Banner (Single Line, Never Wraps) */}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={handleOpenConfirmModal}
+                  style={styles.cleanDateBanner}
+                >
+                  <View style={styles.calendarIconSquare}>
+                    <Feather name="calendar" size={19} color={colors.primaryPink} />
+                  </View>
+
+                  <View style={styles.dateBannerCol}>
+                    <Text style={styles.dateBannerSub}>SELECTED BIRTHDATE (TAP TO CONFIRM)</Text>
+                    <Text style={styles.dateBannerMain} numberOfLines={1}>
+                      {MONTH_NAMES[selectedMonth - 1].toUpperCase()} {selectedDay}, {selectedYear}
+                    </Text>
+                  </View>
+
+                  <View style={styles.isoDateBadge}>
+                    <Text style={styles.isoDateText}>{formattedDateStr}</Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* 3-Column Segmented Controller (MONTH | DAY | YEAR) */}
+                <View style={styles.segmentedColumnsRow}>
+                  {/* Column 1: MONTH */}
+                  <View style={styles.segmentCol}>
+                    <Text style={styles.segmentColTitle}>MONTH</Text>
+                    <View style={styles.segmentValueCard}>
+                      <Text style={styles.segmentMonthText}>
+                        {MONTH_SHORT[selectedMonth - 1]}
+                      </Text>
+                    </View>
+                    <View style={styles.colButtonsRow}>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={handlePrevMonth}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="chevron-back" size={18} color={colors.textDark} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={handleNextMonth}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="chevron-forward" size={18} color={colors.textDark} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Column 2: DAY */}
+                  <View style={styles.segmentCol}>
+                    <Text style={styles.segmentColTitle}>DAY</Text>
+                    <View style={styles.segmentValueCard}>
+                      <Text style={styles.segmentDayText}>{selectedDay}</Text>
+                    </View>
+                    <View style={styles.colButtonsRow}>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={handlePrevDay}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="remove" size={18} color={colors.textDark} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={handleNextDay}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="add" size={18} color={colors.textDark} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Column 3: YEAR */}
+                  <View style={styles.segmentCol}>
+                    <Text style={styles.segmentColTitle}>YEAR</Text>
+                    <View style={styles.segmentValueCard}>
+                      <TextInput
+                        style={styles.segmentYearInput}
+                        value={yearInputText}
+                        onChangeText={handleYearInput}
+                        onBlur={handleYearBlur}
+                        keyboardType="number-pad"
+                        maxLength={4}
+                        selectTextOnFocus
+                      />
+                    </View>
+                    <View style={styles.colButtonsRow}>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={handlePrevYear}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="remove" size={18} color={colors.textDark} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={handleNextYear}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="add" size={18} color={colors.textDark} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Privacy Assurance Row */}
+                <View style={styles.privacyRow}>
+                  <Feather name="lock" size={13} color={colors.primaryPink} />
+                  <Text style={styles.privacyText}>
+                    NEVER SHOWN ON YOUR DATING CARDS
+                  </Text>
+                </View>
+              </BrutalBox>
+            </View>
+
+            {/* 5. ASTRO LOGIC BANNER (LIVE REACTIVE) */}
+            <BrutalBox
+              backgroundColor={colors.lavender}
+              borderColor={colors.borderBlack}
+              borderWidth={2.6}
+              borderRadius={18}
+              shadowOffset={{ x: 3, y: 3 }}
+              style={styles.fullWidth}
+              contentStyle={styles.astroContent}
+            >
+              <View style={styles.astroIconCircle}>
+                <MaterialCommunityIcons name="party-popper" size={22} color={colors.textDark} />
+              </View>
+
+              <View style={styles.astroTextCol}>
+                <Text style={styles.astroTitle}>ASTRO LOGIC ACTIVE</Text>
+                <Text style={styles.astroSubtext}>
+                  {zodiac} season match bonuses unlocked automatically on your feed!
                 </Text>
               </View>
             </BrutalBox>
           </View>
-
-          {/* 5. Astro Logic Active Banner */}
-          <BrutalBox
-            backgroundColor={colors.lavender}
-            borderColor={colors.borderBlack}
-            borderWidth={2.6}
-            borderRadius={18}
-            shadowOffset={{ x: 3, y: 3 }}
-            style={styles.fullWidth}
-            contentStyle={styles.astroContent}
-          >
-            <View style={styles.astroIconCircle}>
-              <MaterialCommunityIcons name="party-popper" size={22} color={colors.textDark} />
-            </View>
-
-            <View style={styles.astroTextCol}>
-              <Text style={styles.astroTitle}>ASTRO LOGIC ACTIVE</Text>
-              <Text style={styles.astroSubtext}>
-                {zodiac} season match bonuses unlocked automatically on your feed!
-              </Text>
-            </View>
-          </BrutalBox>
         </View>
       </ScrollView>
 
-      {/* 6. Sticky Bottom CTA Button */}
-      <View style={styles.bottomCtaContainer}>
-        <BrutalBox
-          backgroundColor={colors.accentYellow}
-          borderColor={colors.borderBlack}
-          borderWidth={2.6}
-          borderRadius={999}
-          shadowOffset={{ x: 3.5, y: 3.5 }}
-          onPress={handleNext}
-          disabled={isSaving}
-          contentStyle={styles.nextButtonContent}
-        >
-          <Text style={styles.nextButtonText}>
-            {isSaving ? 'SAVING...' : 'NEXT ➔'}
-          </Text>
-        </BrutalBox>
+      {/* 6. Pinned Bottom Navigation Dual Buttons (SKIP + NEXT) */}
+      <View style={styles.bottomBarWrapper}>
+        <OnboardingBottomBar
+          onNext={handleOpenConfirmModal}
+          onSkip={handleOpenConfirmModal}
+          isSaving={isSaving}
+        />
       </View>
 
       {/* ========================================================================= */}
-      {/* 7. PERFECT NEO-BRUTALIST DATE SELECTOR POPUP MODAL */}
+      {/* 7. AUTHENTIC NEO-BRUTALIST AGE CONFIRMATION MODAL                          */}
       {/* ========================================================================= */}
       <Modal
-        visible={isModalOpen}
+        visible={showConfirmModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setIsModalOpen(false)}
+        onRequestClose={() => setShowConfirmModal(false)}
       >
         <View style={styles.modalOverlay}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
-            onPress={() => setIsModalOpen(false)}
+            onPress={() => setShowConfirmModal(false)}
           />
 
           <View style={styles.modalContentWrapper}>
@@ -338,186 +472,109 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
               backgroundColor={colors.cardWhite}
               borderColor={colors.borderBlack}
               borderWidth={3}
-              borderRadius={24}
+              borderRadius={22}
               shadowOffset={{ x: 5, y: 5 }}
-              style={styles.modalCard}
+              style={styles.fullWidth}
               contentStyle={styles.modalCardInner}
             >
-              {/* Modal Header */}
-              <View style={styles.modalHeader}>
-                <View style={styles.modalTitleRow}>
-                  <View style={styles.miniCalendarBadge}>
-                    <Feather name="calendar" size={16} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.modalTitle}>SELECT BIRTHDATE</Text>
-                </View>
+              {/* Modal Top Bar */}
+              <View style={styles.modalHeaderRow}>
+                <Text style={styles.modalHeaderLabel}>CONFIRM AGE</Text>
 
                 <TouchableOpacity
-                  onPress={() => setIsModalOpen(false)}
-                  style={styles.closeBtn}
+                  onPress={() => setShowConfirmModal(false)}
+                  style={styles.modalCloseCircle}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons name="close" size={20} color={colors.textDark} />
+                  <Ionicons name="close" size={18} color={colors.textDark} />
                 </TouchableOpacity>
               </View>
 
-              {/* Modal Preview Date Box */}
-              <View style={styles.modalPreviewBox}>
-                <Text style={styles.modalPreviewLabel}>SELECTED:</Text>
-                <Text style={styles.modalPreviewDate}>
-                  {tempNumYear}-{String(tempMonth).padStart(2, '0')}-{String(activeTempDay).padStart(2, '0')}
+              {/* Punchy Hero Headline */}
+              <View style={styles.modalHeroSection}>
+                <Text style={styles.modalHeroSub}>HEY {displayFirstName},</Text>
+                <Text style={styles.modalHeroTitle}>
+                  YOU ARE <Text style={styles.modalHeroAge}>{age}</Text>?
                 </Text>
               </View>
 
-              {/* 1. Year Selector Stepper */}
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionLabel}>1. BIRTH YEAR</Text>
-                <View style={styles.yearRow}>
-                  <TouchableOpacity
-                    style={styles.stepperPill}
-                    onPress={() => setTempYear(String(tempNumYear - 5))}
-                  >
-                    <Text style={styles.stepperPillText}>-5</Text>
-                  </TouchableOpacity>
+              {/* Dating Card Profile Preview Box */}
+              <View style={styles.datingCardPreview}>
+                <Text style={styles.previewHeaderLabel}>HOW YOU'LL APPEAR ON P!NG</Text>
 
-                  <TouchableOpacity
-                    style={styles.stepperPill}
-                    onPress={() => setTempYear(String(tempNumYear - 1))}
-                  >
-                    <Ionicons name="remove" size={16} color="#000" />
-                  </TouchableOpacity>
-
-                  <TextInput
-                    style={styles.yearInputBox}
-                    value={tempYear}
-                    onChangeText={(val) => setTempYear(val.replace(/[^0-9]/g, '').slice(0, 4))}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    placeholder="2000"
-                  />
-
-                  <TouchableOpacity
-                    style={styles.stepperPill}
-                    onPress={() => setTempYear(String(tempNumYear + 1))}
-                  >
-                    <Ionicons name="add" size={16} color="#000" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.stepperPill}
-                    onPress={() => setTempYear(String(tempNumYear + 5))}
-                  >
-                    <Text style={styles.stepperPillText}>+5</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* 2. Month Selector Grid */}
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionLabel}>2. MONTH</Text>
-                <View style={styles.monthsGrid}>
-                  {MONTHS.map((m) => {
-                    const isActive = tempMonth === m.num;
-                    return (
-                      <TouchableOpacity
-                        key={m.num}
-                        onPress={() => setTempMonth(m.num)}
-                        style={[
-                          styles.monthChip,
-                          isActive && styles.monthChipActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.monthChipText,
-                            isActive && styles.monthChipTextActive,
-                          ]}
-                        >
-                          {m.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* 3. Day Selector Stepper / Input */}
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionLabel}>3. DAY OF MONTH (1 - {tempMaxDays})</Text>
-                <View style={styles.dayRow}>
-                  <TouchableOpacity
-                    style={styles.stepperPill}
-                    onPress={() => setTempDay(Math.max(activeTempDay - 1, 1))}
-                  >
-                    <Ionicons name="remove" size={16} color="#000" />
-                  </TouchableOpacity>
-
-                  <View style={styles.dayDisplayBox}>
-                    <Text style={styles.dayDisplayText}>{activeTempDay}</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.stepperPill}
-                    onPress={() => setTempDay(Math.min(activeTempDay + 1, tempMaxDays))}
-                  >
-                    <Ionicons name="add" size={16} color="#000" />
-                  </TouchableOpacity>
-
-                  {/* Quick Day Chips */}
-                  <View style={styles.quickDaysRow}>
-                    {[1, 14, 15, 20, 28].map((d) => (
-                      <TouchableOpacity
-                        key={d}
-                        style={[styles.quickDayPill, activeTempDay === d && styles.quickDayPillActive]}
-                        onPress={() => setTempDay(d)}
-                      >
-                        <Text style={[styles.quickDayPillText, activeTempDay === d && styles.quickDayPillTextActive]}>
-                          {d}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              </View>
-
-              {/* Quick Presets inside modal */}
-              <View style={styles.modalPresetsRow}>
-                <TouchableOpacity
-                  style={styles.modalPresetBtn}
-                  onPress={() => {
-                    setTempYear('2000');
-                    setTempMonth(5);
-                    setTempDay(14);
-                  }}
-                >
-                  <Text style={styles.modalPresetText}>⚡ Adult: 2000-05-14 (Age 26)</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalPresetBtn, styles.modalPresetBtnRed]}
-                  onPress={() => {
-                    setTempYear('2010');
-                    setTempMonth(9);
-                    setTempDay(22);
-                  }}
-                >
-                  <Text style={[styles.modalPresetText, styles.modalPresetTextRed]}>
-                    ⚠️ Underage: 2010-09-22 (Age 15)
+                <View style={styles.previewCardBody}>
+                  <Text style={styles.previewNameAge}>
+                    {displayFirstName}, <Text style={styles.previewAgeNumber}>{age}</Text>
                   </Text>
-                </TouchableOpacity>
+                  <Text style={styles.previewSubtext}>
+                    Born {MONTH_NAMES[selectedMonth - 1]} {selectedDay}, {selectedYear} • {zodiac} ♉
+                  </Text>
+                </View>
               </View>
 
-              {/* Confirm / Apply Button */}
-              <BrutalBox
-                backgroundColor={colors.accentYellow}
-                borderColor={colors.borderBlack}
-                borderWidth={2.4}
-                borderRadius={14}
-                shadowOffset={{ x: 3, y: 3 }}
-                onPress={handleConfirmModal}
-                contentStyle={styles.confirmBtn}
-              >
-                <Text style={styles.confirmBtnText}>APPLY BIRTHDATE ➔</Text>
-              </BrutalBox>
+              {/* Action Buttons */}
+              {is18Plus ? (
+                <View style={styles.modalActionsCol}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={handleFinalConfirm}
+                    style={styles.fullWidth}
+                  >
+                    <BrutalBox
+                      backgroundColor={colors.accentYellow}
+                      borderColor={colors.borderBlack}
+                      borderWidth={2.6}
+                      borderRadius={14}
+                      shadowOffset={{ x: 3, y: 3 }}
+                      style={styles.fullWidth}
+                      contentStyle={styles.modalPrimaryBtn}
+                    >
+                      <Text style={styles.modalPrimaryBtnText}>
+                        YES, I'M {age} ➔
+                      </Text>
+                    </BrutalBox>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setShowConfirmModal(false)}
+                    style={styles.modalSecondaryBtn}
+                  >
+                    <Text style={styles.modalSecondaryBtnText}>
+                      NO, EDIT BIRTHDATE
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.modalActionsCol}>
+                  <View style={styles.underageAlertBlock}>
+                    <Ionicons name="warning" size={16} color="#B42318" />
+                    <Text style={styles.underageAlertText}>
+                      You must be at least 18 years old to join P!NG. You cannot proceed at age {age}.
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => setShowConfirmModal(false)}
+                    style={styles.fullWidth}
+                  >
+                    <BrutalBox
+                      backgroundColor="#FEE2E2"
+                      borderColor="#B42318"
+                      borderWidth={2.4}
+                      borderRadius={14}
+                      shadowOffset={{ x: 3, y: 3 }}
+                      style={styles.fullWidth}
+                      contentStyle={styles.modalPrimaryBtn}
+                    >
+                      <Text style={[styles.modalPrimaryBtnText, { color: '#B42318' }]}>
+                        ← FIX BIRTHDATE
+                      </Text>
+                    </BrutalBox>
+                  </TouchableOpacity>
+                </View>
+              )}
             </BrutalBox>
           </View>
         </View>
@@ -531,72 +588,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bgCream,
   },
-  topNavContainer: {
+  scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: colors.bgCream,
-    gap: 12,
-  },
-  topNavRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniLogoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  miniLogoText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-  },
-  stepIndicatorText: {
-    fontSize: 12.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.6,
-  },
-  avatarButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    width: '12.5%', // Step 1 of 8
-    height: '100%',
-    backgroundColor: colors.primaryPink,
-    borderRadius: 999,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 110,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   container: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     alignItems: 'flex-start',
-    gap: 16,
+    gap: 18,
+  },
+  bottomBarWrapper: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
+  },
+  contentSection: {
+    width: '100%',
+    alignItems: 'flex-start',
+    gap: 14,
   },
   fullWidth: {
     width: '100%',
@@ -664,27 +679,29 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 18,
   },
+
+  /* ===== DATE CARD & SELECTOR STYLES ===== */
   cardOuterWrapper: {
     width: '100%',
-    marginTop: 8,
+    marginTop: 6,
   },
-  dobCardContent: {
-    padding: 18,
-    paddingTop: 26,
+  dateCardContent: {
+    padding: 16,
+    paddingTop: 24,
     gap: 14,
     position: 'relative',
     overflow: 'visible',
   },
   floatingShieldLabel: {
     position: 'absolute',
-    top: -14,
+    top: -13,
     left: 14,
     zIndex: 99,
     backgroundColor: colors.accentYellow,
     borderWidth: 2,
     borderColor: colors.borderBlack,
     borderRadius: 999,
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingVertical: 3.5,
     flexDirection: 'row',
     alignItems: 'center',
@@ -692,11 +709,11 @@ const styles = StyleSheet.create({
   },
   floatingShieldText: {
     fontSize: 10.5,
-    fontWeight: '900',
+    fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
     letterSpacing: 0.4,
   },
-  dateSelectorBox: {
+  cleanDateBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 2.2,
@@ -708,8 +725,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   calendarIconSquare: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 10,
     borderWidth: 2,
     borderColor: colors.borderBlack,
@@ -717,67 +734,114 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dateTextCol: {
+  dateBannerCol: {
     flex: 1,
+    justifyContent: 'center',
   },
-  selectedDateLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#666',
+  dateBannerSub: {
+    fontSize: 8.5,
+    fontFamily: typography.bodyExtraBold,
+    color: '#777',
     letterSpacing: 0.4,
   },
-  dateValueText: {
-    fontSize: 19,
-    fontWeight: '900',
+  dateBannerMain: {
+    fontSize: 16.5,
+    fontFamily: typography.bodyBold,
     color: colors.textDark,
-    letterSpacing: 0.6,
+    letterSpacing: 0.4,
+    marginTop: 1,
   },
-  agePillGreen: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#D1FADF',
-    borderWidth: 1.8,
-    borderColor: '#027A48',
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    gap: 4,
-  },
-  agePillGreenText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#027A48',
-  },
-  underageWarningBanner: {
-    backgroundColor: colors.primaryPink,
-    borderRadius: 999,
-    borderWidth: 1.8,
+  isoDateBadge: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.6,
     borderColor: colors.borderBlack,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    gap: 6,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  underageWarningText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '900',
+  isoDateText: {
+    fontSize: 11,
+    fontFamily: 'monospace',
+    color: colors.textDark,
+  },
+
+  /* 3-Column Segmented Selector */
+  segmentedColumnsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    width: '100%',
+  },
+  segmentCol: {
+    flex: 1,
+    gap: 6,
+    alignItems: 'center',
+  },
+  segmentColTitle: {
+    fontSize: 10,
+    fontFamily: typography.bodyExtraBold,
+    color: '#555',
     letterSpacing: 0.5,
   },
+  segmentValueCard: {
+    width: '100%',
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.borderBlack,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentMonthText: {
+    fontSize: 15,
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+    letterSpacing: 0.5,
+  },
+  segmentDayText: {
+    fontSize: 17,
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+  },
+  segmentYearInput: {
+    width: '100%',
+    height: '100%',
+    textAlign: 'center',
+    fontSize: 16,
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+  },
+  colButtonsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    width: '100%',
+  },
+  stepperBtn: {
+    flex: 1,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1.8,
+    borderColor: colors.borderBlack,
+    backgroundColor: '#FAF8F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  /* Privacy Row */
   privacyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingLeft: 4,
+    paddingLeft: 2,
   },
   privacyText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontFamily: typography.bodyBold,
     color: '#555',
     letterSpacing: 0.4,
   },
+
+  /* Astro Logic Banner */
   astroContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -799,258 +863,150 @@ const styles = StyleSheet.create({
   },
   astroTitle: {
     fontSize: 11.5,
-    fontWeight: '900',
+    fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
     letterSpacing: 0.5,
   },
   astroSubtext: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: typography.bodyMedium,
     color: '#333',
     marginTop: 2,
     lineHeight: 16,
   },
-  bottomCtaContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-  },
-  nextButtonContent: {
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButtonText: {
-    fontSize: 22,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.8,
-  },
 
-  /* ================= MODAL POPUP STYLES ================= */
+  /* ===== AUTHENTIC NEO-BRUTALIST CONFIRMATION MODAL STYLES ===== */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContentWrapper: {
     width: '100%',
-    maxWidth: 360,
-  },
-  modalCard: {
-    width: '100%',
+    maxWidth: 380,
   },
   modalCardInner: {
-    padding: 18,
-    gap: 14,
+    padding: 22,
+    gap: 16,
   },
-  modalHeader: {
+  modalHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  modalTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  modalHeaderLabel: {
+    fontSize: 11.5,
+    fontFamily: typography.bodyExtraBold,
+    color: '#888',
+    letterSpacing: 0.8,
   },
-  miniCalendarBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: colors.primaryPink,
-    borderWidth: 1.6,
-    borderColor: colors.borderBlack,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalTitle: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: colors.textDark,
-    letterSpacing: 0.5,
-  },
-  closeBtn: {
+  modalCloseCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F0ECE1',
-    borderWidth: 1.6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.8,
     borderColor: colors.borderBlack,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalPreviewBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FAF8F5',
-    borderWidth: 1.8,
-    borderColor: colors.borderBlack,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  modalHeroSection: {
+    gap: 2,
   },
-  modalPreviewLabel: {
-    fontSize: 10.5,
-    fontWeight: '900',
+  modalHeroSub: {
+    fontSize: 13,
+    fontFamily: typography.bodyExtraBold,
     color: '#666',
+    letterSpacing: 0.6,
   },
-  modalPreviewDate: {
-    fontSize: 16,
-    fontWeight: '900',
+  modalHeroTitle: {
+    fontSize: 34,
+    fontFamily: typography.headline,
     color: colors.textDark,
-    fontFamily: 'monospace',
+    letterSpacing: 0.5,
+    lineHeight: 38,
   },
-  modalSection: {
-    gap: 6,
+  modalHeroAge: {
+    color: colors.primaryPink,
   },
-  modalSectionLabel: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#555',
-    letterSpacing: 0.4,
-  },
-  yearRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  stepperPill: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    borderWidth: 1.8,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperPillText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: colors.textDark,
-  },
-  yearInputBox: {
-    flex: 1,
-    height: 38,
-    borderWidth: 1.8,
-    borderColor: colors.borderBlack,
-    borderRadius: 10,
+  datingCardPreview: {
     backgroundColor: '#FAF8F5',
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.textDark,
-  },
-  monthsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  monthChip: {
-    width: '23%',
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1.5,
+    borderWidth: 2.2,
     borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  monthChipActive: {
-    backgroundColor: colors.accentYellow,
-  },
-  monthChipText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textDark,
-  },
-  monthChipTextActive: {
-    fontWeight: '900',
-  },
-  dayRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderRadius: 16,
+    padding: 16,
     gap: 8,
   },
-  dayDisplayBox: {
-    width: 44,
-    height: 38,
-    borderRadius: 10,
-    borderWidth: 1.8,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FAF8F5',
-    alignItems: 'center',
-    justifyContent: 'center',
+  previewHeaderLabel: {
+    fontSize: 9.5,
+    fontFamily: typography.bodyExtraBold,
+    color: '#777',
+    letterSpacing: 0.5,
   },
-  dayDisplayText: {
-    fontSize: 16,
-    fontWeight: '900',
+  previewCardBody: {
+    gap: 2,
+  },
+  previewNameAge: {
+    fontSize: 24,
+    fontFamily: typography.headline,
     color: colors.textDark,
+    letterSpacing: 0.5,
   },
-  quickDaysRow: {
-    flexDirection: 'row',
-    gap: 4,
-    flex: 1,
-    justifyContent: 'flex-end',
+  previewAgeNumber: {
+    color: colors.primaryPink,
   },
-  quickDayPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1.4,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
+  previewSubtext: {
+    fontSize: 12.5,
+    fontFamily: typography.bodyMedium,
+    color: '#444',
   },
-  quickDayPillActive: {
-    backgroundColor: colors.accentYellow,
+  modalActionsCol: {
+    gap: 8,
+    marginTop: 2,
   },
-  quickDayPillText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: colors.textDark,
-  },
-  quickDayPillTextActive: {
-    fontWeight: '900',
-  },
-  modalPresetsRow: {
-    flexDirection: 'column',
-    gap: 6,
-  },
-  modalPresetBtn: {
-    backgroundColor: '#FFF8D6',
-    borderWidth: 1.5,
-    borderColor: colors.borderBlack,
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-  },
-  modalPresetText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: colors.textDark,
-  },
-  modalPresetBtnRed: {
-    backgroundColor: '#FEE4E2',
-    borderColor: '#B42318',
-  },
-  modalPresetTextRed: {
-    color: '#B42318',
-  },
-  confirmBtn: {
+  modalPrimaryBtn: {
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  confirmBtnText: {
+  modalPrimaryBtnText: {
     fontSize: 15,
-    fontWeight: '900',
+    fontFamily: typography.headline,
     color: colors.textDark,
     letterSpacing: 0.6,
+  },
+  modalSecondaryBtn: {
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: colors.borderBlack,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSecondaryBtnText: {
+    fontSize: 12,
+    fontFamily: typography.bodyExtraBold,
+    color: '#666',
+    letterSpacing: 0.5,
+  },
+  underageAlertBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1.6,
+    borderColor: '#B42318',
+    borderRadius: 10,
+    padding: 10,
+  },
+  underageAlertText: {
+    fontSize: 12,
+    fontFamily: typography.bodyBold,
+    color: '#B42318',
+    flex: 1,
+    lineHeight: 16,
   },
 });

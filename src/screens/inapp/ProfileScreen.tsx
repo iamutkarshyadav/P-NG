@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Modal,
+  Platform,
 } from 'react-native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, {
@@ -16,14 +18,23 @@ import Svg, {
 } from 'react-native-svg';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../services/authDb';
+import { AccountSecurityScreen } from './AccountSecurityScreen';
+import { PreferencesScreen } from './PreferencesScreen';
+import { SafetyCenterScreen } from './SafetyCenterScreen';
+import { AppSettingsScreen } from './AppSettingsScreen';
+import { ProfilePreviewScreen } from './ProfilePreviewScreen';
 
 interface ProfileScreenProps {
   user: UserAccount;
   onLogout: () => void;
+  onSwitchToDemo?: (demo: 'alex' | 'sam' | 'google') => void;
   onReplayOnboarding?: () => void;
   onEditProfile?: () => void;
+  onSubScreenChange?: (isSubScreen: boolean) => void;
+  initialSubScreen?: 'none' | 'account' | 'preferences' | 'safety' | 'settings' | 'preview';
 }
 
 function AvatarAlex() {
@@ -86,9 +97,40 @@ function AvatarAlex() {
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   user,
   onLogout,
+  onSwitchToDemo,
   onReplayOnboarding,
   onEditProfile,
+  onSubScreenChange,
+  initialSubScreen = 'none',
 }) => {
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showInterestsModal, setShowInterestsModal] = useState(false);
+  const [userInterests, setUserInterests] = useState<string[]>([
+    'Flat White Enthusiast',
+    'Bouldering 6B',
+    'Analog Vinyl',
+    'Modernist Design',
+    'Omakase Nights',
+    '35mm Film Photography',
+  ]);
+  const [tempInterests, setTempInterests] = useState<string[]>([]);
+
+  const [activeSubScreen, setActiveSubScreen] = useState<
+    'none' | 'account' | 'preferences' | 'safety' | 'settings' | 'preview'
+  >(initialSubScreen);
+
+  useEffect(() => {
+    if (initialSubScreen && initialSubScreen !== 'none') {
+      setActiveSubScreen(initialSubScreen);
+    }
+  }, [initialSubScreen]);
+
+  useEffect(() => {
+    if (onSubScreenChange) {
+      onSubScreenChange(activeSubScreen !== 'none');
+    }
+  }, [activeSubScreen, onSubScreenChange]);
+
   const displayName = user.name || 'ALEX';
   const displayAge = user.age || 26;
   const displayBio =
@@ -100,29 +142,108 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     if (onEditProfile) {
       onEditProfile();
     } else {
-      Alert.alert('✏️ Edit Profile', 'Profile edit screen opening soon!');
+      setActiveSubScreen('preview');
     }
   };
 
   const handleManageInterests = () => {
-    Alert.alert('✨ Manage Vibes', 'Add or change your interests and obsessions.');
+    setTempInterests([...userInterests]);
+    setShowInterestsModal(true);
+  };
+
+  const toggleTempInterest = (interest: string) => {
+    if (tempInterests.includes(interest)) {
+      if (tempInterests.length > 1) {
+        setTempInterests(tempInterests.filter((i) => i !== interest));
+      } else {
+        Alert.alert('Minimum Interests', 'Keep at least 1 interest so matches know your vibe.');
+      }
+    } else {
+      if (tempInterests.length < 8) {
+        setTempInterests([...tempInterests, interest]);
+      } else {
+        Alert.alert('Maximum Reached', 'You can select up to 8 core interests.');
+      }
+    }
+  };
+
+  const handleSaveInterests = () => {
+    setUserInterests(tempInterests);
+    setShowInterestsModal(false);
   };
 
   const handleSettingItem = (title: string) => {
-    Alert.alert(title, `Configure your ${title} settings.`);
+    if (title === 'Preferences & Filters') {
+      setActiveSubScreen('preferences');
+    } else if (title === 'Safety Centre') {
+      setActiveSubScreen('safety');
+    } else if (title === 'Account & Security') {
+      setActiveSubScreen('account');
+    } else if (title === 'All Settings') {
+      setActiveSubScreen('settings');
+    } else {
+      Alert.alert(title, `Configure your ${title} settings.`);
+    }
   };
 
   const handleConfirmLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out of P!NG?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Log Out', style: 'destructive', onPress: onLogout },
-      ],
-      { cancelable: true }
-    );
+    setShowLogoutModal(true);
   };
+
+  const handleExecuteLogout = () => {
+    setShowLogoutModal(false);
+    onLogout();
+  };
+
+  // Sub-screen rendering
+  if (activeSubScreen === 'account') {
+    return (
+      <AccountSecurityScreen
+        user={user}
+        onBack={() => setActiveSubScreen('none')}
+        onPreviewProfile={() => setActiveSubScreen('preview')}
+      />
+    );
+  }
+
+  if (activeSubScreen === 'preferences') {
+    return (
+      <PreferencesScreen
+        user={user}
+        onBack={() => setActiveSubScreen('none')}
+        onPreviewProfile={() => setActiveSubScreen('preview')}
+      />
+    );
+  }
+
+  if (activeSubScreen === 'safety') {
+    return (
+      <SafetyCenterScreen
+        user={user}
+        onBack={() => setActiveSubScreen('none')}
+        onPreviewProfile={() => setActiveSubScreen('preview')}
+      />
+    );
+  }
+
+  if (activeSubScreen === 'settings') {
+    return (
+      <AppSettingsScreen
+        user={user}
+        onBack={() => setActiveSubScreen('none')}
+        onPreviewProfile={() => setActiveSubScreen('preview')}
+      />
+    );
+  }
+
+  if (activeSubScreen === 'preview') {
+    return (
+      <ProfilePreviewScreen
+        user={user}
+        onBack={() => setActiveSubScreen('none')}
+      />
+    );
+  }
 
   return (
     <ScrollView
@@ -130,30 +251,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.container}>
-        {/* 1. Header Row */}
-        <View style={styles.headerRow}>
-          <View style={styles.titleWithDot}>
-            <View style={styles.pinkDot} />
-            <Text style={styles.headerTitle}>MY PROFILE</Text>
-          </View>
-
-          {/* Settings Gear Button */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => handleSettingItem('All Settings')}
-          >
-            <BrutalBox
-              backgroundColor="#FFFFFF"
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={999}
-              shadowOffset={3}
-              style={styles.gearButton}
-            >
-              <Ionicons name="settings-outline" size={20} color={colors.textDark} />
-            </BrutalBox>
-          </TouchableOpacity>
-        </View>
 
         {/* 2. Hero Avatar Section */}
         <View style={styles.heroSection}>
@@ -185,11 +282,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <Ionicons name="flash" size={22} color={colors.primaryPink} />
           </View>
 
-          {/* Active Now Pill */}
-          <View style={styles.activeNowPill}>
-            <View style={styles.activeDot} />
-            <Text style={styles.activeNowText}>ACTIVE NOW</Text>
-          </View>
 
           {/* EDIT PROFILE & PHOTOS BUTTON */}
           <TouchableOpacity
@@ -213,62 +305,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* 3. Stats Trio (Pink, Yellow, Lavender) */}
-        <View style={styles.statsRow}>
-          {/* Stat 1: Pings Left */}
-          <View style={styles.statCardWrap}>
-            <BrutalBox
-              backgroundColor="#FFD5E5"
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={16}
-              shadowOffset={3}
-              style={styles.statCard}
-            >
-              <Text style={styles.statNumber}>84</Text>
-              <View style={styles.statLabelRow}>
-                <Ionicons name="flash" size={11} color="#D97706" />
-                <Text style={styles.statLabel}>P!NGS</Text>
-              </View>
-            </BrutalBox>
-          </View>
-
-          {/* Stat 2: Free Likes */}
-          <View style={styles.statCardWrap}>
-            <BrutalBox
-              backgroundColor={colors.accentYellow}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={16}
-              shadowOffset={3}
-              style={styles.statCard}
-            >
-              <Text style={styles.statNumber}>100%</Text>
-              <View style={styles.statLabelRow}>
-                <Ionicons name="heart" size={11} color={colors.primaryPink} />
-                <Text style={styles.statLabel}>FREE LIKES</Text>
-              </View>
-            </BrutalBox>
-          </View>
-
-          {/* Stat 3: Reply Rate */}
-          <View style={styles.statCardWrap}>
-            <BrutalBox
-              backgroundColor="#E2DCFE"
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={16}
-              shadowOffset={3}
-              style={styles.statCard}
-            >
-              <Text style={styles.statNumber}>98%</Text>
-              <View style={styles.statLabelRow}>
-                <Ionicons name="chatbubble-ellipses" size={11} color="#4F46E5" />
-                <Text style={styles.statLabel}>REPLY RATE</Text>
-              </View>
-            </BrutalBox>
-          </View>
-        </View>
 
         {/* 4. BIO & VIBES CONTAINER */}
         <View style={styles.bioContainerWrapper}>
@@ -321,29 +357,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
               {/* Interest Pills */}
               <View style={styles.chipsContainer}>
-                <View style={[styles.chipPill, { backgroundColor: '#FFD5E5' }]}>
-                  <Text style={styles.chipText}>Flat White Enthusiast</Text>
-                </View>
-
-                <View style={[styles.chipPill, { backgroundColor: '#E2DCFE' }]}>
-                  <Text style={styles.chipText}>Bouldering 6B</Text>
-                </View>
-
-                <View style={[styles.chipPill, { backgroundColor: '#FFE600' }]}>
-                  <Text style={styles.chipText}>Analog Vinyl</Text>
-                </View>
-
-                <View style={[styles.chipPill, { backgroundColor: '#FAF7F2' }]}>
-                  <Text style={styles.chipText}>Modernist Design</Text>
-                </View>
-
-                <View style={[styles.chipPill, { backgroundColor: '#FFD5E5' }]}>
-                  <Text style={styles.chipText}>Omakase Nights</Text>
-                </View>
-
-                <View style={[styles.chipPill, { backgroundColor: '#E2DCFE' }]}>
-                  <Text style={styles.chipText}>35mm Film Photography</Text>
-                </View>
+                {userInterests.map((interest, idx) => {
+                  const pillColors = ['#FFD5E5', '#E2DCFE', '#FFE600', '#FAF7F2', '#D1FAE5', '#FEF08A'];
+                  const bg = pillColors[idx % pillColors.length];
+                  return (
+                    <View key={interest} style={[styles.chipPill, { backgroundColor: bg }]}>
+                      <Text style={styles.chipText}>{interest}</Text>
+                    </View>
+                  );
+                })}
               </View>
             </View>
           </BrutalBox>
@@ -489,6 +511,94 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </BrutalBox>
         </TouchableOpacity>
 
+        {/* 7. QUICK DEMO ACCOUNTS SWITCHER */}
+        <View style={styles.demoAccountsContainer}>
+          <BrutalBox
+            backgroundColor={colors.cardWhite}
+            borderColor={colors.borderBlack}
+            borderWidth={2.4}
+            borderRadius={18}
+            shadowOffset={{ x: 3.5, y: 3.5 }}
+            style={styles.fullWidth}
+            contentStyle={styles.demoAccountsCardContent}
+          >
+            <View style={styles.demoHeaderRow}>
+              <Ionicons name="flash" size={15} color="#D97706" />
+              <Text style={styles.demoHeaderTitle}>DEMO ACCOUNT QUICK SWITCH</Text>
+            </View>
+            <Text style={styles.demoHeaderSubtitle}>
+              Instantly switch test sessions without manual typing:
+            </Text>
+
+            <View style={styles.demoButtonsRow}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => onSwitchToDemo ? onSwitchToDemo('alex') : onLogout()}
+                style={styles.demoBtnItem}
+              >
+                <BrutalBox
+                  backgroundColor={user.email.includes('alex') ? colors.accentYellow : '#FAF7F2'}
+                  borderColor={colors.borderBlack}
+                  borderWidth={2}
+                  borderRadius={12}
+                  shadowOffset={{ x: 2, y: 2 }}
+                  contentStyle={styles.demoBtnItemContent}
+                >
+                  <Text style={styles.demoBtnItemEmoji}>⚡</Text>
+                  <Text style={styles.demoBtnItemLabel}>ALEX</Text>
+                  {user.email.includes('alex') && (
+                    <View style={styles.currentActiveDot} />
+                  )}
+                </BrutalBox>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => onSwitchToDemo ? onSwitchToDemo('sam') : onLogout()}
+                style={styles.demoBtnItem}
+              >
+                <BrutalBox
+                  backgroundColor={user.email.includes('sam') ? colors.primaryPink : '#FAF7F2'}
+                  borderColor={colors.borderBlack}
+                  borderWidth={2}
+                  borderRadius={12}
+                  shadowOffset={{ x: 2, y: 2 }}
+                  contentStyle={styles.demoBtnItemContent}
+                >
+                  <Text style={styles.demoBtnItemEmoji}>❤️</Text>
+                  <Text style={[styles.demoBtnItemLabel, user.email.includes('sam') && { color: '#FFF' }]}>
+                    SAM
+                  </Text>
+                  {user.email.includes('sam') && (
+                    <View style={styles.currentActiveDot} />
+                  )}
+                </BrutalBox>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => onSwitchToDemo ? onSwitchToDemo('google') : onLogout()}
+                style={styles.demoBtnItem}
+              >
+                <BrutalBox
+                  backgroundColor={user.email.includes('gmail') ? '#C7D2FE' : '#FAF7F2'}
+                  borderColor={colors.borderBlack}
+                  borderWidth={2}
+                  borderRadius={12}
+                  shadowOffset={{ x: 2, y: 2 }}
+                  contentStyle={styles.demoBtnItemContent}
+                >
+                  <Text style={styles.demoBtnItemEmoji}>🌐</Text>
+                  <Text style={styles.demoBtnItemLabel}>GOOGLE</Text>
+                  {user.email.includes('gmail') && (
+                    <View style={styles.currentActiveDot} />
+                  )}
+                </BrutalBox>
+              </TouchableOpacity>
+            </View>
+          </BrutalBox>
+        </View>
+
         {/* Developer Replay Mode for Quick Access */}
         {onReplayOnboarding && (
           <TouchableOpacity
@@ -502,15 +612,207 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Neo-Brutalist Logout Confirmation Modal */}
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCardWrap}>
+            <BrutalBox
+              backgroundColor="#FFFFFF"
+              borderColor={colors.borderBlack}
+              borderWidth={3}
+              borderRadius={20}
+              shadowOffset={{ x: 5, y: 5 }}
+              contentStyle={styles.modalCardContent}
+            >
+              {/* Floating Alert Tag */}
+              <View style={styles.modalTagWrapper}>
+                <View style={styles.modalTag}>
+                  <Text style={styles.modalTagText}>⚠️ CONFIRM LOGOUT</Text>
+                </View>
+              </View>
+
+              <View style={styles.modalBody}>
+                <Text style={styles.modalTitle}>LOG OUT OF P!NG?</Text>
+                <Text style={styles.modalSubtitle}>
+                  Logged in as <Text style={{ fontFamily: typography.bodyBold }}>{displayName}</Text> ({user.email}).
+                  Your profile and preferences remain saved in the local demo database.
+                </Text>
+
+                <View style={styles.modalButtonsRow}>
+                  {/* Cancel Button */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setShowLogoutModal(false)}
+                    style={styles.modalBtnHalf}
+                  >
+                    <BrutalBox
+                      backgroundColor="#EBE7E0"
+                      borderColor={colors.borderBlack}
+                      borderWidth={2.2}
+                      borderRadius={12}
+                      shadowOffset={{ x: 2.5, y: 2.5 }}
+                      contentStyle={styles.modalBtnContent}
+                    >
+                      <Text style={styles.modalCancelText}>CANCEL</Text>
+                    </BrutalBox>
+                  </TouchableOpacity>
+
+                  {/* Confirm Log Out Button */}
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={handleExecuteLogout}
+                    style={styles.modalBtnHalf}
+                  >
+                    <BrutalBox
+                      backgroundColor="#B5003D"
+                      borderColor={colors.borderBlack}
+                      borderWidth={2.2}
+                      borderRadius={12}
+                      shadowOffset={{ x: 2.5, y: 2.5 }}
+                      contentStyle={styles.modalBtnContent}
+                    >
+                      <Text style={styles.modalLogoutText}>YES, LOG OUT</Text>
+                    </BrutalBox>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </BrutalBox>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Neo-Brutalist Manage Profile Interests Modal */}
+      <Modal
+        visible={showInterestsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInterestsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCardWrap}>
+            <BrutalBox
+              backgroundColor="#FFFFFF"
+              borderColor={colors.borderBlack}
+              borderWidth={3}
+              borderRadius={20}
+              shadowOffset={{ x: 5, y: 5 }}
+              contentStyle={styles.modalCardContent}
+            >
+              {/* Floating Tag */}
+              <View style={styles.modalTagWrapper}>
+                <View style={[styles.modalTag, { backgroundColor: colors.accentYellow }]}>
+                  <Text style={styles.modalTagText}>⚡ PROFILE VIBES</Text>
+                </View>
+              </View>
+
+              <View style={styles.modalBody}>
+                <Text style={styles.modalTitle}>MANAGE INTERESTS</Text>
+                <Text style={styles.modalSubtitle}>
+                  Select passions & hobbies to showcase on your card ({tempInterests.length}/8 active).
+                </Text>
+
+                <View style={styles.modalVibesGrid}>
+                  {[
+                    'Flat White Enthusiast',
+                    'Bouldering 6B',
+                    'Analog Vinyl',
+                    'Modernist Design',
+                    'Omakase Nights',
+                    '35mm Film Photography',
+                    'Modular Synths',
+                    'Indie Cinema',
+                    'Natural Wine',
+                    'Ceramics & Clay',
+                    'Bauhaus Architecture',
+                    'Dog Walking',
+                  ].map((item) => {
+                    const isSelected = tempInterests.includes(item);
+                    return (
+                      <TouchableOpacity
+                        key={item}
+                        activeOpacity={0.75}
+                        onPress={() => toggleTempInterest(item)}
+                        style={[
+                          styles.vibeChoiceChip,
+                          isSelected && styles.vibeChoiceChipActive,
+                        ]}
+                      >
+                        {isSelected && (
+                          <Ionicons name="checkmark" size={14} color="#000" style={{ marginRight: 4 }} />
+                        )}
+                        <Text
+                          style={[
+                            styles.vibeChoiceText,
+                            isSelected && styles.vibeChoiceTextActive,
+                          ]}
+                        >
+                          {item}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.modalButtonsRow}>
+                  {/* Cancel */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setShowInterestsModal(false)}
+                    style={styles.modalBtnHalf}
+                  >
+                    <BrutalBox
+                      backgroundColor="#EBE7E0"
+                      borderColor={colors.borderBlack}
+                      borderWidth={2.2}
+                      borderRadius={12}
+                      shadowOffset={{ x: 2.5, y: 2.5 }}
+                      contentStyle={styles.modalBtnContent}
+                    >
+                      <Text style={styles.modalCancelText}>CANCEL</Text>
+                    </BrutalBox>
+                  </TouchableOpacity>
+
+                  {/* Save Button */}
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={handleSaveInterests}
+                    style={styles.modalBtnHalf}
+                  >
+                    <BrutalBox
+                      backgroundColor={colors.accentYellow}
+                      borderColor={colors.borderBlack}
+                      borderWidth={2.2}
+                      borderRadius={12}
+                      shadowOffset={{ x: 2.5, y: 2.5 }}
+                      contentStyle={styles.modalBtnContent}
+                    >
+                      <Text style={[styles.modalCancelText, { color: '#000' }]}>SAVE VIBES ⚡</Text>
+                    </BrutalBox>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </BrutalBox>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingBottom: 30,
+    paddingBottom: Platform.OS === 'ios' ? 105 : 95,
   },
   container: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     paddingHorizontal: 16,
     paddingTop: 12,
   },
@@ -823,5 +1125,176 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyBold,
     color: '#6B7280',
     textDecorationLine: 'underline',
+  },
+  fullWidth: {
+    width: '100%',
+  },
+
+  /* Neo-Brutalist Logout Modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCardWrap: {
+    width: '100%',
+    maxWidth: 380,
+  },
+  modalCardContent: {
+    padding: 20,
+    paddingTop: 24,
+    position: 'relative',
+    overflow: 'visible',
+  },
+  modalTagWrapper: {
+    position: 'absolute',
+    top: -14,
+    left: 16,
+    zIndex: 10,
+  },
+  modalTag: {
+    backgroundColor: colors.accentYellow,
+    borderWidth: 2,
+    borderColor: colors.borderBlack,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+  },
+  modalTagText: {
+    fontSize: 10.5,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textDark,
+    letterSpacing: 0.5,
+  },
+  modalBody: {
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+    letterSpacing: 0.5,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    fontFamily: typography.bodyMedium,
+    color: '#4B5563',
+    lineHeight: 18,
+  },
+  modalButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalBtnHalf: {
+    flex: 1,
+  },
+  modalBtnContent: {
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    fontSize: 13,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textDark,
+    letterSpacing: 0.5,
+  },
+  modalLogoutText: {
+    fontSize: 13,
+    fontFamily: typography.bodyExtraBold,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+
+  /* Demo Accounts Quick Switcher */
+  demoAccountsContainer: {
+    marginTop: 6,
+    marginBottom: 10,
+    width: '100%',
+  },
+  demoAccountsCardContent: {
+    padding: 14,
+    gap: 8,
+  },
+  demoHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  demoHeaderTitle: {
+    fontSize: 12,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textDark,
+    letterSpacing: 0.5,
+  },
+  demoHeaderSubtitle: {
+    fontSize: 11.5,
+    fontFamily: typography.bodyMedium,
+    color: '#6B7280',
+  },
+  demoButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  demoBtnItem: {
+    flex: 1,
+  },
+  demoBtnItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 42,
+    gap: 5,
+    paddingHorizontal: 6,
+    position: 'relative',
+  },
+  demoBtnItemEmoji: {
+    fontSize: 13,
+  },
+  demoBtnItemLabel: {
+    fontSize: 11.5,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textDark,
+    letterSpacing: 0.4,
+  },
+  currentActiveDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primaryPink,
+  },
+  modalVibesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginVertical: 14,
+  },
+  vibeChoiceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1.8,
+    borderColor: colors.borderBlack,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  vibeChoiceChipActive: {
+    backgroundColor: colors.accentYellow,
+  },
+  vibeChoiceText: {
+    fontFamily: typography.fonts.bold,
+    fontSize: 12,
+    color: '#4B5563',
+  },
+  vibeChoiceTextActive: {
+    color: '#000000',
   },
 });

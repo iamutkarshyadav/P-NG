@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -22,9 +23,11 @@ import Svg, {
 } from 'react-native-svg';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { LAYOUT } from '../theme/responsive';
 import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
+import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
 import { UserAccount, authDb } from '../services/authDb';
 
 interface OnboardingPhotosScreenProps {
@@ -242,74 +245,75 @@ export const OnboardingPhotosScreen: React.FC<OnboardingPhotosScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-          {/* 2. Step Badge Pill */}
-          <View style={styles.stepBadgeWrapper}>
-            <BrutalBox
-              backgroundColor={colors.accentYellow}
-              borderColor={colors.borderBlack}
-              borderWidth={2.2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.stepBadgeContent}
-            >
-              <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
-              <Text style={styles.stepBadgeText}>
-                STEP 05 / 08 • VIBE CHECK
-              </Text>
-            </BrutalBox>
-          </View>
-
-          {/* 3. Headline & Subtitle Row */}
-          <View style={styles.headlineWrapper}>
-            <Text style={styles.headlineTitle}>ADD YOUR PHOTOS</Text>
-            <View style={styles.subtitleRow}>
-              <Text style={styles.subtitleText}>Add at least 2 real photos</Text>
+          <View style={styles.contentSection}>
+            {/* 2. Step Badge Pill */}
+            <View style={styles.stepBadgeWrapper}>
               <BrutalBox
-                backgroundColor="#FFD8E4"
+                backgroundColor={colors.accentYellow}
                 borderColor={colors.borderBlack}
-                borderWidth={2}
+                borderWidth={2.2}
                 borderRadius={999}
-                shadowOffset={{ x: 2, y: 2 }}
-                contentStyle={styles.soFarPillContent}
+                shadowOffset={{ x: 2.2, y: 2.2 }}
+                contentStyle={styles.stepBadgeContent}
               >
-                <Text style={styles.soFarPillText}>{photoCount}/6 SO FAR</Text>
+                <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
+                <Text style={styles.stepBadgeText}>
+                  STEP 05 / 08 • VIBE CHECK
+                </Text>
               </BrutalBox>
             </View>
-          </View>
 
-          {/* 4. 6-Slot Photo Grid */}
-          <View style={styles.gridContainer}>
-            {/* Slot 1: Primary Photo */}
-            <View style={styles.gridItem}>
-              <BrutalBox
-                backgroundColor="#14B8A6"
-                borderColor={colors.borderBlack}
-                borderWidth={2.6}
-                borderRadius={18}
-                shadowOffset={{ x: 3.5, y: 3.5 }}
-                overflow="visible"
-                contentStyle={styles.photoSlotContent}
-              >
-                <Slot1Illustration />
+            {/* 3. Headline & Subtitle Row */}
+            <View style={styles.headlineWrapper}>
+              <Text style={styles.headlineTitle}>ADD YOUR PHOTOS</Text>
+              <View style={styles.subtitleRow}>
+                <Text style={styles.subtitleText}>Add at least 2 real photos</Text>
+                <BrutalBox
+                  backgroundColor="#FFD8E4"
+                  borderColor={colors.borderBlack}
+                  borderWidth={2}
+                  borderRadius={999}
+                  shadowOffset={{ x: 2, y: 2 }}
+                  contentStyle={styles.soFarPillContent}
+                >
+                  <Text style={styles.soFarPillText}>{photoCount}/6 SO FAR</Text>
+                </BrutalBox>
+              </View>
+            </View>
 
-                {/* Floating Primary Badge */}
-                <View style={styles.primaryBadgeWrapper}>
-                  <View style={styles.primaryBadge}>
-                    <Text style={styles.primaryBadgeText}>★ PRIMARY</Text>
+            {/* 4. 6-Slot Photo Grid */}
+            <View style={styles.gridContainer}>
+              {/* Slot 1: Primary Photo */}
+              <View style={styles.gridItem}>
+                <BrutalBox
+                  backgroundColor="#14B8A6"
+                  borderColor={colors.borderBlack}
+                  borderWidth={2.6}
+                  borderRadius={18}
+                  shadowOffset={{ x: 3.5, y: 3.5 }}
+                  overflow="visible"
+                  contentStyle={styles.photoSlotContent}
+                >
+                  <Slot1Illustration />
+
+                  {/* Floating Primary Badge */}
+                  <View style={styles.primaryBadgeWrapper}>
+                    <View style={styles.primaryBadge}>
+                      <Text style={styles.primaryBadgeText}>★ PRIMARY</Text>
+                    </View>
                   </View>
-                </View>
 
-                {/* Slot Number Badge */}
-                <View style={styles.slotIndexBadge}>
-                  <Text style={styles.slotIndexText}>1</Text>
-                </View>
+                  {/* Slot Number Badge */}
+                  <View style={styles.slotIndexBadge}>
+                    <Text style={styles.slotIndexText}>1</Text>
+                  </View>
 
-                {/* Reorder Handle Icon */}
-                <View style={styles.reorderBadge}>
-                  <MaterialCommunityIcons name="dots-grid" size={16} color={colors.textDark} />
-                </View>
-              </BrutalBox>
-            </View>
+                  {/* Reorder Handle Icon */}
+                  <View style={styles.reorderBadge}>
+                    <MaterialCommunityIcons name="dots-grid" size={16} color={colors.textDark} />
+                  </View>
+                </BrutalBox>
+              </View>
 
             {/* Slot 2: Second Photo */}
             <View style={styles.gridItem}>
@@ -453,25 +457,17 @@ export const OnboardingPhotosScreen: React.FC<OnboardingPhotosScreenProps> = ({
               <Text style={styles.ruleItemText}>100% REAL</Text>
             </View>
           </BrutalBox>
+          </View>
         </View>
       </ScrollView>
 
-      {/* 7. Bottom Action CTA */}
-      <View style={styles.bottomCtaContainer}>
-        <BrutalBox
-          backgroundColor={colors.accentYellow}
-          borderColor={colors.borderBlack}
-          borderWidth={2.6}
-          borderRadius={999}
-          shadowOffset={{ x: 3.5, y: 3.5 }}
-          onPress={handleNext}
-          disabled={isSaving}
-          contentStyle={styles.nextButtonContent}
-        >
-          <Text style={styles.nextButtonText}>
-            {isSaving ? 'SAVING...' : 'NEXT ➔'}
-          </Text>
-        </BrutalBox>
+      {/* 7. Pinned Bottom Action Buttons */}
+      <View style={styles.bottomBarWrapper}>
+        <OnboardingBottomBar
+          onNext={handleNext}
+          onSkip={() => handleNext()}
+          isSaving={isSaving}
+        />
       </View>
     </SafeAreaView>
   );
@@ -536,17 +532,29 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 110,
+    paddingTop: 8,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   container: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
     alignItems: 'flex-start',
-    gap: 14,
+    gap: 20,
+  },
+  bottomBarWrapper: {
+    width: '100%',
+    maxWidth: LAYOUT.shellMaxWidth,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
+  },
+  contentSection: {
+    width: '100%',
+    alignItems: 'flex-start',
+    gap: 18,
   },
   fullWidth: {
     width: '100%',
@@ -806,24 +814,5 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: colors.primaryPink,
-  },
-
-  /* Bottom CTA */
-  bottomCtaContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-  },
-  nextButtonContent: {
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButtonText: {
-    fontSize: 22,
-    fontFamily: typography.headline,
-    color: colors.textDark,
-    letterSpacing: 0.8,
   },
 });

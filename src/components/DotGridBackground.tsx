@@ -1,13 +1,13 @@
 import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Defs, Pattern, Rect, Circle, Path } from 'react-native-svg';
 import { colors } from '../theme/colors';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export const DotGridBackground: React.FC = () => {
+  const { width: screenWidth } = useWindowDimensions();
+
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
       {/* Background base color */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.bgCream }]} />
 
@@ -18,7 +18,7 @@ export const DotGridBackground: React.FC = () => {
         style={styles.topAccent}
       >
         <Path
-          d={`M 0,0 L ${SCREEN_WIDTH},0 L ${SCREEN_WIDTH},180 C ${SCREEN_WIDTH * 0.7},260 ${SCREEN_WIDTH * 0.3},160 0,240 Z`}
+          d={`M 0,0 L ${screenWidth},0 L ${screenWidth},180 C ${screenWidth * 0.7},260 ${screenWidth * 0.3},160 0,240 Z`}
           fill="rgba(255, 182, 193, 0.35)"
         />
       </Svg>
