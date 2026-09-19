@@ -226,7 +226,7 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
     setShowConfirmModal(false);
     setIsSaving(true);
     try {
-      onComplete(await updateProfile(user, { birthday: formattedDateStr, onboarding_step: 2 }));
+      onComplete(await updateProfile(user, { birthday: formattedDateStr, onboarding_step: 3 }));
     } catch (e) {
       Alert.alert('Could not save', errorMessage(e));
     } finally {
@@ -260,7 +260,7 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
               >
                 <MaterialCommunityIcons name="cake-variant" size={15} color={colors.textDark} />
                 <Text style={styles.stepBadgeText}>
-                  STEP 01 / 08 • THE AGE CHECK
+                  STEP 02 / 08 • THE AGE CHECK
                 </Text>
               </BrutalBox>
             </View>

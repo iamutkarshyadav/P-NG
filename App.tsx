@@ -203,10 +203,10 @@ function AppShell() {
 
       switch (step) {
         case 1:
-          return <OnboardingAgeScreen user={user} onBack={handleLogout} onComplete={advance(2)} />;
+          return <OnboardingNameScreen user={user} onBack={handleLogout} onNext={advance(2)} />;
         case 2:
           return (
-            <OnboardingNameScreen user={user} onBack={() => setStepOverride(1)} onNext={advance(3)} />
+            <OnboardingAgeScreen user={user} onBack={() => setStepOverride(1)} onComplete={advance(3)} />
           );
         case 3:
           return (

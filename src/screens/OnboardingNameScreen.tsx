@@ -51,7 +51,7 @@ export const OnboardingNameScreen: React.FC<OnboardingNameScreenProps> = ({
 
     setIsSaving(true);
     try {
-      onNext(await updateProfile(user, { display_name: trimmed, onboarding_step: 3 }));
+      onNext(await updateProfile(user, { display_name: trimmed, onboarding_step: 2 }));
     } catch (e) {
       Alert.alert('Could not save', errorMessage(e));
     } finally {
@@ -89,7 +89,7 @@ export const OnboardingNameScreen: React.FC<OnboardingNameScreenProps> = ({
                 contentStyle={styles.stepBadgeContent}
               >
                 <Ionicons name="flash" size={13} color={colors.textDark} />
-                <Text style={styles.stepBadgeText}>STEP 02 / 08</Text>
+                <Text style={styles.stepBadgeText}>STEP 01 / 08</Text>
               </BrutalBox>
 
               {/* 5 Dots: 2 filled, 3 unfilled */}
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressBarFill: {
-    width: '25%', // Step 2 of 8
+    width: '12.5%', // Step 1 of 8
     height: '100%',
     backgroundColor: colors.primaryPink,
     borderRadius: 999,
