@@ -132,10 +132,29 @@ export async function deletePhoto(photo: Pick<ProfilePhoto, 'id' | 'storagePath'
   await supabase.storage.from(PHOTO_BUCKET).remove([photo.storagePath]);
 }
 
-/** Rewrites positions 0..n-1 in the given order (the unique constraint is deferred). */
+/** Rewrites positions 0..n-1 in the given order atomically. */
 export async function reorderPhotos(orderedIds: string[]): Promise<void> {
-  const results = await Promise.all(
-    orderedIds.map((id, position) => supabase.from('photos').update({ position }).eq('id', id))
-  );
-  for (const r of results) assertOk(r);
+  if (orderedIds.length === 0) return;
+  // Try atomic database RPC first
+  const { error } = await supabase.rpc('reorder_photos', { p_ordered_ids: orderedIds });
+  if (!error) return;
+
+  // Defensive fallback: 2-stage staged update using negative positions to prevent
+  // unique constraint collisions when updating across separate HTTP transactions.
+  for (let i = 0; i < orderedIds.length; i += 1) {
+    assertOk(
+      await supabase
+        .from('photos')
+        .update({ position: -1 * (i + 1) })
+        .eq('id', orderedIds[i])
+    );
+  }
+  for (let i = 0; i < orderedIds.length; i += 1) {
+    assertOk(
+      await supabase
+        .from('photos')
+        .update({ position: i })
+        .eq('id', orderedIds[i])
+    );
+  }
 }

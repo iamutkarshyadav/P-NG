@@ -225,6 +225,7 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
       setActivePhotoIndex(0);
       if (action === 'superping') queryClient.invalidateQueries({ queryKey: ['superpings-left'] });
       queryClient.invalidateQueries({ queryKey: ['likes'] });
+      queryClient.invalidateQueries({ queryKey: ['likes-count'] });
       if (outcome.matched && outcome.matchId) {
         setMatch({ matchId: outcome.matchId, name: current.name, partnerId: current.id });
         queryClient.invalidateQueries({ queryKey: ['matches'] });
@@ -262,6 +263,7 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
       setActivePhotoIndex(0);
       queryClient.invalidateQueries({ queryKey: ['superpings-left'] });
       queryClient.invalidateQueries({ queryKey: ['likes'] });
+      queryClient.invalidateQueries({ queryKey: ['likes-count'] });
     } catch (e) {
       Alert.alert('Could not rewind', errorMessage(e));
     } finally {

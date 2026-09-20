@@ -23,6 +23,11 @@ export async function fetchMyTagIds(userId: string): Promise<number[]> {
 
 /** Replaces the user's tags with exactly `tagIds` (1-8 enforced by the UI and the database). */
 export async function saveMyTags(userId: string, tagIds: number[]): Promise<void> {
+  // Try atomic database RPC first
+  const { error } = await supabase.rpc('set_my_tags', { p_tag_ids: tagIds });
+  if (!error) return;
+
+  // Fallback to delete-then-insert if RPC is not yet deployed
   const current = await fetchMyTagIds(userId);
   const toAdd = tagIds.filter((id) => !current.includes(id));
   const toRemove = current.filter((id) => !tagIds.includes(id));

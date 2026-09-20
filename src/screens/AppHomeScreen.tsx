@@ -3,6 +3,7 @@ import {
   StyleSheet,
   View,
   Platform,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -70,6 +71,32 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
   const [profileSubScreen, setProfileSubScreen] = useState<
     'none' | 'account' | 'preferences' | 'safety' | 'settings' | 'preview'
   >('none');
+
+  // Android hardware back navigation
+  useEffect(() => {
+    const onBackPress = () => {
+      if (activeChat) {
+        setActiveChat(null);
+        return true;
+      }
+      if (showPreferences) {
+        setShowPreferences(false);
+        return true;
+      }
+      if (isProfileSubScreenActive || profileSubScreen !== 'none') {
+        setIsProfileSubScreenActive(false);
+        setProfileSubScreen('none');
+        return true;
+      }
+      if (activeTab !== 'discover') {
+        setActiveTab('discover');
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [activeChat, showPreferences, isProfileSubScreenActive, profileSubScreen, activeTab]);
 
   const handleOpenFilter = () => {
     setShowPreferences(true);

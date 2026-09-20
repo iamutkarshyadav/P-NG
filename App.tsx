@@ -10,6 +10,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -108,6 +109,19 @@ function AppShell() {
       setReplaying(false);
     }
   }, [status]);
+
+  // Hardware back navigation during onboarding
+  useEffect(() => {
+    if (!user || (user.hasCompletedOnboarding && !replaying)) return;
+    const step = stepOverride ?? user.onboardingStep;
+    if (step <= 1) return;
+    const onBackPress = () => {
+      setStepOverride(step - 1);
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [user, stepOverride, replaying]);
 
   /**
    * Dev quick fill (only rendered when env.enableDevLogins):

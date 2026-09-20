@@ -121,13 +121,15 @@ export function subscribeToMessages(
   };
 }
 
+export type InboxChangeEvent = 'message' | 'match';
+
 /** Fires whenever any message or match involving the user appears (drives badges and the matches list). */
-export function subscribeToInbox(userId: string, onChange: () => void): () => void {
+export function subscribeToInbox(userId: string, onChange: (event: InboxChangeEvent) => void): () => void {
   const channel = supabase
     .channel(`inbox:${userId}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, onChange)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches' }, onChange)
-    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'matches' }, onChange)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => onChange('message'))
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches' }, () => onChange('match'))
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'matches' }, () => onChange('match'))
     .subscribe();
   return () => {
     supabase.removeChannel(channel);

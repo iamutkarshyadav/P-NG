@@ -64,6 +64,15 @@ export async function fetchLikes(): Promise<LikeProfile[]> {
   }));
 }
 
+/** Fast scalar count for badge rendering without loading the entire profiles list. */
+export async function fetchLikesCount(): Promise<number> {
+  const { data, error } = await supabase.rpc('likes_count');
+  if (!error && typeof data === 'number') return data;
+  // Fallback to fetchLikes length if RPC not yet deployed
+  const likes = await fetchLikes();
+  return likes.length;
+}
+
 export async function swipe(targetId: string, action: SwipeAction): Promise<SwipeOutcome> {
   const { data, error } = await supabase.rpc('record_swipe', { p_target: targetId, p_action: action });
   if (error) {

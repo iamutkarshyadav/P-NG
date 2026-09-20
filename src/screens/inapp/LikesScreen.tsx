@@ -79,6 +79,7 @@ export const LikesScreen: React.FC<LikesScreenProps> = ({ onOpenChat }) => {
     try {
       const outcome = await swipe(item.id, action);
       await queryClient.invalidateQueries({ queryKey: ['likes'] });
+      queryClient.invalidateQueries({ queryKey: ['likes-count'] });
       queryClient.invalidateQueries({ queryKey: ['feed'] });
       if (outcome.matched && outcome.matchId) {
         queryClient.invalidateQueries({ queryKey: ['matches'] });

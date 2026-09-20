@@ -3,7 +3,9 @@ import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
+  FlatList,
+  ListRenderItem,
+  BackHandler,
   TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
@@ -24,6 +26,7 @@ import { BrutalBox } from '../../components/BrutalBox';
 import { ProfileAvatar } from '../../components/ProfileAvatar';
 import { UserAccount } from '../../types/user';
 import { useSignedUrls } from '../../hooks/useSignedUrls';
+import { supabase } from '../../lib/supabase';
 import {
   ChatMessage,
   MESSAGE_PAGE_SIZE,
@@ -58,11 +61,12 @@ function dayLabel(iso: string): string {
 }
 
 type PendingMessage = ChatMessage & { pending?: true };
+type ChatRow = { kind: 'day'; key: string; label: string } | { kind: 'msg'; key: string; msg: PendingMessage };
 
 export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) => {
   const { matchId, partnerId, partnerName } = target;
   const queryClient = useQueryClient();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList<ChatRow>>(null);
 
   const [messages, setMessages] = useState<PendingMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,8 +86,37 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
   const urls = useSignedUrls(summary?.photoPath ? [summary.photoPath] : []);
 
   const scrollToEnd = useCallback(() => {
-    requestAnimationFrame(() => scrollViewRef.current?.scrollToEnd({ animated: true }));
+    requestAnimationFrame(() => flatListRef.current?.scrollToEnd({ animated: true }));
   }, []);
+
+  // Hardware back button navigation
+  useEffect(() => {
+    const onBackPress = () => {
+      onBack();
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [onBack]);
+
+  // Guard against match deletion (unmatch or block while chat is open)
+  useEffect(() => {
+    const channel = supabase
+      .channel(`match-guard:${matchId}`)
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` },
+        () => {
+          Alert.alert('Match Ended', 'This conversation is no longer active.', [
+            { text: 'OK', onPress: onBack },
+          ]);
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [matchId, onBack]);
 
   const markConversationRead = useCallback(() => {
     markRead(matchId)
@@ -195,7 +228,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       if (textToSend === undefined) setInputText(text);
-      Alert.alert('Message not sent', errorMessage(e));
+      const msg = errorMessage(e);
+      if (/participant|foreign key|can_message|not found/i.test(msg)) {
+        Alert.alert('Conversation Ended', 'You can no longer message this match.', [
+          { text: 'OK', onPress: onBack },
+        ]);
+      } else {
+        Alert.alert('Message not sent', msg);
+      }
     } finally {
       setSending(false);
     }
@@ -271,6 +311,71 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
 
   const verified = summary?.isVerified ?? false;
 
+  const renderRow: ListRenderItem<ChatRow> = ({ item: row }) => {
+    if (row.kind === 'day') {
+      return (
+        <View key={row.key} style={styles.timestampContainer}>
+          <BrutalBox
+            backgroundColor="#FFFFFF"
+            borderColor={colors.borderBlack}
+            borderWidth={1.8}
+            borderRadius={999}
+            shadowOffset={{ x: 2, y: 2 }}
+            contentStyle={styles.timestampPill}
+          >
+            <Feather name="clock" size={12} color={colors.primaryPink} />
+            <Text style={styles.timestampText}>{row.label}</Text>
+          </BrutalBox>
+        </View>
+      );
+    }
+    const { msg } = row;
+    const mine = msg.senderId === user.id;
+    return mine ? (
+      <View key={row.key} style={styles.outgoingMsgContainer}>
+        <BrutalBox
+          backgroundColor={colors.primaryPink}
+          borderColor={colors.borderBlack}
+          borderWidth={2.2}
+          borderRadius={18}
+          shadowOffset={{ x: 3, y: 3 }}
+          style={[styles.outgoingBubbleBox, msg.pending && styles.pendingBubble]}
+          contentStyle={styles.outgoingBubbleContent}
+        >
+          <Text style={styles.outgoingMsgText}>{msg.body}</Text>
+        </BrutalBox>
+        <View style={styles.outgoingSubTimeRow}>
+          <Text style={styles.outgoingSubTime}>
+            {msg.pending ? 'Sending...' : clockTime(msg.createdAt)}
+            {msg.readAt ? ' • READ' : ''}
+          </Text>
+          {!msg.pending && (
+            <MaterialCommunityIcons
+              name="check-all"
+              size={15}
+              color={msg.readAt ? colors.primaryPink : '#9CA3AF'}
+            />
+          )}
+        </View>
+      </View>
+    ) : (
+      <View key={row.key} style={styles.incomingMsgContainer}>
+        <BrutalBox
+          backgroundColor="#FFFFFF"
+          borderColor={colors.borderBlack}
+          borderWidth={2.2}
+          borderRadius={18}
+          shadowOffset={{ x: 3, y: 3 }}
+          style={styles.incomingBubbleBox}
+          contentStyle={styles.incomingBubbleContent}
+        >
+          <Text style={styles.incomingMsgText}>{msg.body}</Text>
+        </BrutalBox>
+        <Text style={styles.incomingSubTime}>{clockTime(msg.createdAt)}</Text>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
@@ -283,9 +388,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
           style={styles.backIconButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel="Back to matches"
         >
-          <Feather name="arrow-left" size={26} color={colors.textDark} />
+          <Ionicons name="arrow-back" size={24} color={colors.textDark} />
         </TouchableOpacity>
 
         <Text style={styles.chatDirectTitle}>CHAT DIRECT</Text>
@@ -305,193 +410,139 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
       </View>
 
       <KeyboardAvoidingView style={styles.keyboardContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          ref={scrollViewRef}
+        <FlatList
+          ref={flatListRef}
+          data={rows}
+          renderItem={renderRow}
+          keyExtractor={(item) => item.key}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-        >
-          <BrutalBox
-            backgroundColor="#FFFFFF"
-            borderColor={colors.borderBlack}
-            borderWidth={2.4}
-            borderRadius={18}
-            shadowOffset={{ x: 3.5, y: 3.5 }}
-            contentStyle={styles.contactCardContent}
-          >
-            <View style={styles.contactCardRow}>
-              <View style={styles.contactAvatarWrap}>
-                <View style={styles.contactAvatarBorder}>
-                  <ProfileAvatar
-                    uri={summary?.photoPath ? urls[summary.photoPath] : null}
-                    seed={partnerUserId ?? matchId}
-                    size={52}
-                    accessibilityLabel={`Photo of ${partnerName}`}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.contactInfoCol}>
-                <Text style={styles.contactName}>
-                  {partnerName.toUpperCase()}
-                  {summary?.age ? `, ${summary.age}` : ''}
-                </Text>
-                {verified && (
-                  <View style={styles.activePill}>
-                    <Ionicons name="checkmark-done" size={12} color={colors.textDark} />
-                    <Text style={styles.activePillText}>100% REAL</Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.contactActionsRow}>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => setMenuOpen(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Safety options"
-                >
-                  <BrutalBox
-                    backgroundColor="#FFFFFF"
-                    borderColor={colors.borderBlack}
-                    borderWidth={2}
-                    borderRadius={999}
-                    shadowOffset={{ x: 2, y: 2 }}
-                    contentStyle={styles.actionRoundBtn}
-                  >
-                    <Ionicons name="shield-outline" size={17} color={colors.textDark} />
-                  </BrutalBox>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </BrutalBox>
-
-          {showWarning && (
-            <BrutalBox
-              backgroundColor={colors.primaryPink}
-              borderColor={colors.borderBlack}
-              borderWidth={2}
-              borderRadius={12}
-              shadowOffset={{ x: 2.5, y: 2.5 }}
-              style={styles.warningContainer}
-              contentStyle={styles.warningContent}
-            >
-              <View style={styles.warningLeftRow}>
-                <Text style={styles.warningIcon}>⚠️</Text>
-                <Text style={styles.warningText} numberOfLines={1}>
-                  KEEP CHATS IN P!NG. NEVER SEND MONEY.
-                </Text>
-              </View>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => setShowWarning(false)}
-                style={styles.closeWarningBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Dismiss safety notice"
+          removeClippedSubviews={Platform.OS !== 'web'}
+          initialNumToRender={20}
+          maxToRenderPerBatch={15}
+          windowSize={7}
+          ListHeaderComponent={
+            <View>
+              <BrutalBox
+                backgroundColor="#FFFFFF"
+                borderColor={colors.borderBlack}
+                borderWidth={2.4}
+                borderRadius={18}
+                shadowOffset={{ x: 3.5, y: 3.5 }}
+                contentStyle={styles.contactCardContent}
               >
-                <Ionicons name="close" size={14} color="#FFFFFF" />
-              </TouchableOpacity>
-            </BrutalBox>
-          )}
+                <View style={styles.contactCardRow}>
+                  <View style={styles.contactAvatarWrap}>
+                    <View style={styles.contactAvatarBorder}>
+                      <ProfileAvatar
+                        uri={summary?.photoPath ? urls[summary.photoPath] : null}
+                        seed={partnerUserId ?? matchId}
+                        size={52}
+                        accessibilityLabel={`Photo of ${partnerName}`}
+                      />
+                    </View>
+                  </View>
 
-          {loading && <ActivityIndicator style={styles.centerSpinner} color={colors.primaryPink} />}
+                  <View style={styles.contactInfoCol}>
+                    <Text style={styles.contactName}>
+                      {partnerName.toUpperCase()}
+                      {summary?.age ? `, ${summary.age}` : ''}
+                    </Text>
+                    {verified && (
+                      <View style={styles.activePill}>
+                        <Ionicons name="checkmark-done" size={12} color={colors.textDark} />
+                        <Text style={styles.activePillText}>100% REAL</Text>
+                      </View>
+                    )}
+                  </View>
 
-          {loadError && (
-            <Text style={styles.chatNotice}>Could not load messages: {loadError}</Text>
-          )}
-
-          {hasMore && !loading && (
-            <TouchableOpacity onPress={loadEarlier} disabled={loadingMore} style={styles.loadMore}>
-              <Text style={styles.loadMoreText}>{loadingMore ? 'LOADING...' : 'LOAD EARLIER MESSAGES'}</Text>
-            </TouchableOpacity>
-          )}
-
-          {!loading && !loadError && messages.length === 0 && (
-            <Text style={styles.chatNotice}>You matched! Say something to {partnerName}.</Text>
-          )}
-
-          {rows.map((row) => {
-            if (row.kind === 'day') {
-              return (
-                <View key={row.key} style={styles.timestampContainer}>
-                  <BrutalBox
-                    backgroundColor="#FFFFFF"
-                    borderColor={colors.borderBlack}
-                    borderWidth={1.8}
-                    borderRadius={999}
-                    shadowOffset={{ x: 2, y: 2 }}
-                    contentStyle={styles.timestampPill}
-                  >
-                    <Feather name="clock" size={12} color={colors.primaryPink} />
-                    <Text style={styles.timestampText}>{row.label}</Text>
-                  </BrutalBox>
+                  <View style={styles.contactActionsRow}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setMenuOpen(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Safety options"
+                    >
+                      <BrutalBox
+                        backgroundColor="#FFFFFF"
+                        borderColor={colors.borderBlack}
+                        borderWidth={2}
+                        borderRadius={999}
+                        shadowOffset={{ x: 2, y: 2 }}
+                        contentStyle={styles.actionRoundBtn}
+                      >
+                        <Ionicons name="shield-outline" size={17} color={colors.textDark} />
+                      </BrutalBox>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              );
-            }
-            const { msg } = row;
-            const mine = msg.senderId === user.id;
-            return mine ? (
-              <View key={row.key} style={styles.outgoingMsgContainer}>
+              </BrutalBox>
+
+              {showWarning && (
                 <BrutalBox
                   backgroundColor={colors.primaryPink}
                   borderColor={colors.borderBlack}
-                  borderWidth={2.2}
-                  borderRadius={18}
-                  shadowOffset={{ x: 3, y: 3 }}
-                  style={[styles.outgoingBubbleBox, msg.pending && styles.pendingBubble]}
-                  contentStyle={styles.outgoingBubbleContent}
+                  borderWidth={2}
+                  borderRadius={12}
+                  shadowOffset={{ x: 2.5, y: 2.5 }}
+                  style={styles.warningContainer}
+                  contentStyle={styles.warningContent}
                 >
-                  <Text style={styles.outgoingMsgText}>{msg.body}</Text>
+                  <View style={styles.warningLeftRow}>
+                    <Text style={styles.warningIcon}>⚠️</Text>
+                    <Text style={styles.warningText} numberOfLines={1}>
+                      KEEP CHATS IN P!NG. NEVER SEND MONEY.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setShowWarning(false)}
+                    style={styles.closeWarningBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Dismiss safety notice"
+                  >
+                    <Ionicons name="close" size={14} color="#FFFFFF" />
+                  </TouchableOpacity>
                 </BrutalBox>
-                <View style={styles.outgoingSubTimeRow}>
-                  <Text style={styles.outgoingSubTime}>
-                    {msg.pending ? 'Sending...' : clockTime(msg.createdAt)}
-                    {msg.readAt ? ' • READ' : ''}
-                  </Text>
-                  {!msg.pending && (
-                    <MaterialCommunityIcons
-                      name="check-all"
-                      size={15}
-                      color={msg.readAt ? colors.primaryPink : '#9CA3AF'}
-                    />
-                  )}
-                </View>
-              </View>
-            ) : (
-              <View key={row.key} style={styles.incomingMsgContainer}>
+              )}
+
+              {loading && <ActivityIndicator style={styles.centerSpinner} color={colors.primaryPink} />}
+
+              {loadError && (
+                <Text style={styles.chatNotice}>Could not load messages: {loadError}</Text>
+              )}
+
+              {hasMore && !loading && (
+                <TouchableOpacity onPress={loadEarlier} disabled={loadingMore} style={styles.loadMore}>
+                  <Text style={styles.loadMoreText}>{loadingMore ? 'LOADING...' : 'LOAD EARLIER MESSAGES'}</Text>
+                </TouchableOpacity>
+              )}
+
+              {!loading && !loadError && messages.length === 0 && (
+                <Text style={styles.chatNotice}>You matched! Say something to {partnerName}.</Text>
+              )}
+            </View>
+          }
+          ListFooterComponent={
+            !loading && messages.length === 0 ? (
+              <TouchableOpacity activeOpacity={0.85} onPress={() => handleSend(ICEBREAKER)}>
                 <BrutalBox
-                  backgroundColor="#FFFFFF"
+                  backgroundColor={colors.accentYellow}
                   borderColor={colors.borderBlack}
                   borderWidth={2.2}
-                  borderRadius={18}
+                  borderRadius={16}
                   shadowOffset={{ x: 3, y: 3 }}
-                  style={styles.incomingBubbleBox}
-                  contentStyle={styles.incomingBubbleContent}
+                  style={styles.promptContainer}
+                  contentStyle={styles.promptContent}
                 >
-                  <Text style={styles.incomingMsgText}>{msg.body}</Text>
+                  <Ionicons name="flash" size={16} color={colors.primaryPink} />
+                  <Text style={styles.promptText}>ICEBREAKER: {ICEBREAKER.toUpperCase()}</Text>
                 </BrutalBox>
-                <Text style={styles.incomingSubTime}>{clockTime(msg.createdAt)}</Text>
-              </View>
-            );
-          })}
-
-          {!loading && messages.length === 0 && (
-            <TouchableOpacity activeOpacity={0.85} onPress={() => handleSend(ICEBREAKER)}>
-              <BrutalBox
-                backgroundColor={colors.accentYellow}
-                borderColor={colors.borderBlack}
-                borderWidth={2.2}
-                borderRadius={16}
-                shadowOffset={{ x: 3, y: 3 }}
-                style={styles.promptContainer}
-                contentStyle={styles.promptContent}
-              >
-                <Ionicons name="flash" size={16} color={colors.primaryPink} />
-                <Text style={styles.promptText}>ICEBREAKER: {ICEBREAKER.toUpperCase()}</Text>
-              </BrutalBox>
-            </TouchableOpacity>
-          )}
-        </ScrollView>
+              </TouchableOpacity>
+            ) : null
+          }
+        />
 
         <View style={styles.inputBarContainer}>
           <View style={styles.textInputBox}>

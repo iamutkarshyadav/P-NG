@@ -457,6 +457,9 @@ export type Database = {
       register_push_token: { Args: { p_platform: string; p_token: string }; Returns: undefined };
       set_location: { Args: { p_city?: string; p_lat: number; p_lng: number }; Returns: undefined };
       superpings_left: { Args: never; Returns: number };
+      reorder_photos: { Args: { p_ordered_ids: string[] }; Returns: undefined };
+      likes_count: { Args: never; Returns: number };
+      set_my_tags: { Args: { p_tag_ids: number[] }; Returns: undefined };
       undo_last_swipe: { Args: never; Returns: string };
       unmatch: { Args: { p_match: string }; Returns: undefined };
       zodiac_sign: { Args: { b: string }; Returns: string };

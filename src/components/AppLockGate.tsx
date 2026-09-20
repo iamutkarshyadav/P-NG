@@ -45,29 +45,35 @@ export const AppLockGate: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => sub.remove();
   }, [unlock]);
 
-  if (locked === null) return null;
-  if (!locked) return <>{children}</>;
-
   return (
-    <View style={styles.screen}>
-      <Ionicons name="lock-closed" size={44} color={colors.primaryPink} />
-      <Text style={styles.title}>P!NG IS LOCKED</Text>
-      <BrutalBox
-        backgroundColor={colors.accentYellow}
-        borderRadius={16}
-        onPress={unlock}
-        disabled={busy}
-        contentStyle={styles.button}
-      >
-        {busy ? <ActivityIndicator color={colors.textDark} /> : <Text style={styles.buttonText}>UNLOCK</Text>}
-      </BrutalBox>
+    <View style={styles.container}>
+      {children}
+      {(locked === true || locked === null) && (
+        <View style={[StyleSheet.absoluteFill, styles.overlay]}>
+          <Ionicons name="lock-closed" size={44} color={colors.primaryPink} />
+          <Text style={styles.title}>P!NG IS LOCKED</Text>
+          <BrutalBox
+            backgroundColor={colors.accentYellow}
+            borderRadius={16}
+            onPress={unlock}
+            disabled={busy}
+            contentStyle={styles.button}
+          >
+            {busy ? <ActivityIndicator color={colors.textDark} /> : <Text style={styles.buttonText}>UNLOCK</Text>}
+          </BrutalBox>
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  screen: {
+  container: {
     flex: 1,
+    position: 'relative',
+  },
+  overlay: {
+    zIndex: 9999,
     backgroundColor: colors.bgCream,
     alignItems: 'center',
     justifyContent: 'center',
