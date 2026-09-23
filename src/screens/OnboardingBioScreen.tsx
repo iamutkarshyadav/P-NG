@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { LAYOUT } from '../theme/responsive';
@@ -20,6 +19,7 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
+import { OnboardingHeadline } from '../components/OnboardingHeadline';
 import { UserAccount } from '../types/user';
 import { updateProfile } from '../services/profile';
 import { errorMessage } from '../services/errors';
@@ -32,8 +32,10 @@ interface OnboardingBioScreenProps {
 }
 
 const FALLBACK_PROMPTS = [
-  '☕ Coffee, code & late night concerts.',
-  '🍕 The secret to winning me over is good food.',
+  'Coffee, code & late night concerts.',
+  'The secret to winning me over is good food & honesty.',
+  'Always looking for someone to explore hidden food spots with.',
+  'Music on repeat, weekend road trips & good vibes only.',
 ];
 
 export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
@@ -49,7 +51,17 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
     let cancelled = false;
     fetchPromptSuggestions()
       .then((list) => {
-        if (!cancelled && list.length > 0) setPrompts(list);
+        if (!cancelled && list.length > 0) {
+          const cleaned = list.map((item) =>
+            item
+              .replace(
+                /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g,
+                ''
+              )
+              .trim()
+          );
+          setPrompts(cleaned);
+        }
       })
       .catch(() => undefined); // suggestions are optional; keep the fallbacks
     return () => {
@@ -62,14 +74,15 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
   };
 
   const handleNext = async () => {
-    if (!bioText.trim()) {
-      Alert.alert('Bio Required', 'Please share a few words about yourself.');
+    const trimmed = bioText.trim();
+    if (!trimmed) {
+      Alert.alert('Bio Required', 'Write a short bio or tap one of the conversation starters below.');
       return;
     }
 
     setIsSaving(true);
     try {
-      onNext(await updateProfile(user, { bio: bioText.trim(), onboarding_step: 7 }));
+      onNext(await updateProfile(user, { bio: trimmed, onboarding_step: 7 }));
     } catch (e) {
       Alert.alert('Could not save', errorMessage(e));
     } finally {
@@ -83,7 +96,7 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
       <DotGridBackground />
 
       {/* 1. Universal Neo-Brutalist Onboarding Top Header */}
-      <OnboardingTopHeader onBack={onBack} user={user} />
+      <OnboardingTopHeader onBack={onBack} onPrevStep={onBack} user={user} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -96,30 +109,13 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
         >
           <View style={styles.container}>
           <View style={styles.contentSection}>
-            {/* 2. Step Badge Pill */}
-            <View style={styles.stepBadgeWrapper}>
-              <BrutalBox
-                backgroundColor={colors.accentYellow}
-                borderColor={colors.borderBlack}
-                borderWidth={2.2}
-                borderRadius={999}
-                shadowOffset={{ x: 2.2, y: 2.2 }}
-                contentStyle={styles.stepBadgeContent}
-              >
-                <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
-                <Text style={styles.stepBadgeText}>
-                  STEP 06 / 08 • VIBE PROMPT
-                </Text>
-              </BrutalBox>
-            </View>
-
-            {/* 3. Headline & Subtitle with Generous Headroom */}
-            <View style={styles.headlineWrapper}>
-              <Text style={styles.headlineTitle}>WHAT'S YOUR STORY?</Text>
-              <Text style={styles.subtitleText}>
-                Write a punchy bio or pick a quick conversation starter.
-              </Text>
-            </View>
+            {/* 2. Unified Headline with 5px Black Underline */}
+            <OnboardingHeadline
+              step="06"
+              line1="WHAT&apos;S YOUR"
+              focalWord="STORY &amp; VIBE?"
+              subtitle="Write a punchy bio or pick a quick conversation starter."
+            />
 
             {/* 4. Main Bio Input Card */}
             <View style={styles.cardOuterWrapper}>
@@ -165,7 +161,7 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
 
             {/* 5. Quick Prompt Starters */}
             <View style={styles.promptStartersWrapper}>
-              <Text style={styles.startersHeader}>💡 QUICK STARTERS (TAP TO USE):</Text>
+              <Text style={styles.startersHeader}>CONVERSATION STARTERS (TAP TO ADD):</Text>
               <View style={styles.startersList}>
                 {prompts.map((item, index) => (
                   <TouchableOpacity
@@ -189,21 +185,18 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
               </View>
             </View>
 
-            {/* 6. Tip Banner */}
+            {/* 6. Guidance Box */}
             <BrutalBox
-              backgroundColor={colors.lavender}
+              backgroundColor="#FFFFFF"
               borderColor={colors.borderBlack}
               borderWidth={2.4}
-              borderRadius={18}
+              borderRadius={16}
               shadowOffset={{ x: 3.5, y: 3.5 }}
               style={styles.fullWidth}
               contentStyle={styles.tipCardContent}
             >
-              <View style={styles.tipIconBadge}>
-                <MaterialCommunityIcons name="lightning-bolt" size={17} color={colors.textDark} />
-              </View>
               <Text style={styles.tipText}>
-                Profiles with filled bios receive 3.2x more genuine pings!
+                A clear bio helps matches break the ice and start real conversations.
               </Text>
             </BrutalBox>
           </View>
@@ -214,7 +207,9 @@ export const OnboardingBioScreen: React.FC<OnboardingBioScreenProps> = ({
       <View style={styles.bottomBarWrapper}>
         <OnboardingBottomBar
           onNext={handleNext}
-          onSkip={() => handleNext()}
+          onBack={onBack}
+          showSkip={false}
+          disabled={!bioText.trim()}
           isSaving={isSaving}
         />
       </View>
@@ -227,59 +222,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.bgCream,
-  },
-  headerBar: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 8,
-    gap: 12,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButtonContent: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniLogoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  miniLogoText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-  },
-  stepIndicatorText: {
-    fontSize: 12.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.6,
-  },
-  avatarButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    width: '75%', // Step 6 of 8
-    height: '100%',
-    backgroundColor: colors.primaryPink,
-    borderRadius: 999,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -309,45 +251,6 @@ const styles = StyleSheet.create({
   fullWidth: {
     width: '100%',
   },
-  stepBadgeWrapper: {
-    alignSelf: 'flex-start',
-    marginTop: 0,
-  },
-  stepBadgeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    gap: 6,
-  },
-  stepBadgeText: {
-    fontSize: 11,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.5,
-  },
-  headlineWrapper: {
-    width: '100%',
-    gap: 0,
-    marginTop: -8,
-    paddingTop: 2,
-    overflow: 'visible',
-  },
-  headlineTitle: {
-    fontSize: 34,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 38,
-    paddingTop: 1,
-  },
-  subtitleText: {
-    fontSize: 13,
-    fontFamily: typography.bodyMedium,
-    color: '#333',
-    lineHeight: 18,
-  },
-
   /* Card */
   cardOuterWrapper: {
     width: '100%',
@@ -447,26 +350,13 @@ const styles = StyleSheet.create({
 
   /* Tip Card */
   tipCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    gap: 12,
-  },
-  tipIconBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.accentYellow,
-    borderWidth: 1.8,
-    borderColor: colors.borderBlack,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   tipText: {
-    flex: 1,
-    fontSize: 12.5,
+    fontSize: 12,
     fontFamily: typography.bodyBold,
-    color: colors.textDark,
+    color: '#4B5563',
     lineHeight: 17,
   },
 });

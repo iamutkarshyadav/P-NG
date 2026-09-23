@@ -1,7 +1,5 @@
-import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { supabase } from '../lib/supabase';
-import { env } from '../lib/env';
 import { assertOk, errorMessage, unwrap } from './errors';
 import type { Enums } from '../types/database';
 
@@ -22,23 +20,27 @@ export interface BlockedUser {
   blockedAt: string;
 }
 
+/**
+ * Files a report. The server snapshots the recent conversation with this person (even after a block has ended it),
+ * so pass the match id when the report starts from a chat.
+ */
 export async function reportUser(
-  reporterId: string,
   reportedId: string,
   reason: ReportReason,
-  details?: string
+  details?: string,
+  matchId?: string
 ): Promise<void> {
   assertOk(
-    await supabase.from('reports').insert({
-      reporter_id: reporterId,
-      reported_id: reportedId,
-      reason,
-      details: details?.trim() ? details.trim().slice(0, 1000) : null,
+    await supabase.rpc('report_user', {
+      p_reported: reportedId,
+      p_reason: reason,
+      p_details: details?.trim() ? details.trim().slice(0, 1000) : undefined,
+      p_match: matchId,
     })
   );
 }
 
-/** Blocking also removes any match between the two people (a database trigger does this). */
+/** Blocking also ends any match between the two people (a database trigger does this; the messages are kept for reports). */
 export async function blockUser(blockerId: string, blockedId: string): Promise<void> {
   const { error } = await supabase.from('blocks').insert({ blocker_id: blockerId, blocked_id: blockedId });
   // 23505 = already blocked; that is the outcome the user wanted.
@@ -73,42 +75,27 @@ export async function fetchVerificationState(userId: string, isVerified: boolean
   return data.status === 'pending' ? 'pending' : data.status === 'rejected' ? 'rejected' : 'verified';
 }
 
-export type SelfieOutcome = 'submitted' | 'cancelled' | 'denied';
+/** Asks the server for a pose to strike in the selfie (valid for 15 minutes). */
+export async function requestVerificationChallenge(): Promise<string> {
+  return unwrap(await supabase.rpc('verification_challenge'));
+}
 
-/** Takes a front-camera selfie, uploads it privately and files a verification request for review. */
-export async function submitVerificationSelfie(userId: string): Promise<SelfieOutcome> {
-  const perm = await ImagePicker.requestCameraPermissionsAsync();
-  if (!perm.granted) return 'denied';
-  const shot = await ImagePicker.launchCameraAsync({
-    mediaTypes: ['images'],
-    cameraType: ImagePicker.CameraType.front,
-    allowsEditing: false,
-    quality: 1,
-  });
-  const asset = shot.canceled ? undefined : shot.assets?.[0];
-  if (!asset) return 'cancelled';
-
-  const ref = await ImageManipulator.manipulate(asset.uri).resize({ width: 1080 }).renderAsync();
+/** Uploads the selfie privately and files the verification request, which carries the pose the server issued. */
+export async function submitVerificationPhoto(userId: string, localUri: string): Promise<void> {
+  const ref = await ImageManipulator.manipulate(localUri).resize({ width: 1080 }).renderAsync();
   const saved = await ref.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
   const path = `${userId}/${Date.now().toString(36)}.jpg`;
   const bytes = await (await fetch(saved.uri)).arrayBuffer();
   const upload = await supabase.storage.from('selfies').upload(path, bytes, { contentType: 'image/jpeg' });
   if (upload.error) throw new Error(errorMessage(upload.error, 'Upload failed. Please try again.'));
 
-  const { error } = await supabase.from('verifications').insert({ user_id: userId, selfie_path: path });
+  const { error } = await supabase.rpc('submit_verification', { p_selfie_path: path });
   if (error) {
     await supabase.storage.from('selfies').remove([path]);
     // 23505: a request is already waiting for review.
     if (error.code === '23505') throw new Error('You already have a verification waiting for review.');
     throw new Error(errorMessage(error));
   }
-  return 'submitted';
-}
-
-/** Dev only: approves the tester's own pending selfie so the badge can be seen. */
-export async function devApproveVerification(): Promise<void> {
-  if (!env.enableDevLogins) return;
-  await supabase.rpc('dev_approve_my_verification');
 }
 
 export async function countMyReports(): Promise<number> {

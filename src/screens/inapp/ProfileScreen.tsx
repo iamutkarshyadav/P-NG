@@ -8,7 +8,7 @@ import {
   Alert,
   Modal,
   Platform,
-  ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
@@ -16,11 +16,10 @@ import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { ProfileAvatar } from '../../components/ProfileAvatar';
 import { usePhotos } from '../../hooks/usePhotos';
-import { fetchAllTags, fetchMyTagIds, saveMyTags } from '../../services/tags';
-import { errorMessage } from '../../services/errors';
+import { fetchAllTags, fetchMyTagIds } from '../../services/tags';
 import { AccountSecurityScreen } from './AccountSecurityScreen';
 import { PreferencesScreen } from './PreferencesScreen';
 import { SafetyCenterScreen } from './SafetyCenterScreen';
@@ -30,8 +29,6 @@ import { ProfilePreviewScreen } from './ProfilePreviewScreen';
 interface ProfileScreenProps {
   user: UserAccount;
   onLogout: () => void;
-  onSwitchToDemo?: (demo: 'alex' | 'sam') => void;
-  onReplayOnboarding?: () => void;
   onEditProfile?: () => void;
   onSubScreenChange?: (isSubScreen: boolean) => void;
   initialSubScreen?: 'none' | 'account' | 'preferences' | 'safety' | 'settings' | 'preview';
@@ -40,30 +37,25 @@ interface ProfileScreenProps {
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   user,
   onLogout,
-  onSwitchToDemo,
-  onReplayOnboarding,
   onEditProfile,
   onSubScreenChange,
   initialSubScreen = 'none',
 }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [showInterestsModal, setShowInterestsModal] = useState(false);
-  const queryClient = useQueryClient();
   const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchAllTags, staleTime: 10 * 60_000 });
   const myTagsQuery = useQuery({ queryKey: ['my-tags', user.id], queryFn: () => fetchMyTagIds(user.id) });
   const { photos } = usePhotos(user.id);
-  const [savingInterests, setSavingInterests] = useState(false);
   const allTags = useMemo(() => tagsQuery.data ?? [], [tagsQuery.data]);
   const myTagIds = useMemo(() => myTagsQuery.data ?? [], [myTagsQuery.data]);
   const userInterests = useMemo(
     () => allTags.filter((t) => myTagIds.includes(t.id)).map((t) => t.name),
     [allTags, myTagIds]
   );
-  const [tempTagIds, setTempTagIds] = useState<number[]>([]);
 
   const [activeSubScreen, setActiveSubScreen] = useState<
     'none' | 'account' | 'preferences' | 'safety' | 'settings' | 'preview'
   >(initialSubScreen);
+  const [previewInitialMode, setPreviewInitialMode] = useState<'preview' | 'edit'>('edit');
 
   useEffect(() => {
     if (initialSubScreen && initialSubScreen !== 'none') {
@@ -77,6 +69,23 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   }, [activeSubScreen, onSubScreenChange]);
 
+  // Android hardware back navigation to dismiss sub-screens and modals
+  useEffect(() => {
+    const onBackPress = () => {
+      if (showLogoutModal) {
+        setShowLogoutModal(false);
+        return true;
+      }
+      if (activeSubScreen !== 'none') {
+        setActiveSubScreen('none');
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [showLogoutModal, activeSubScreen]);
+
   const displayName = user.name;
   const displayAge = user.age;
   const displayBio =
@@ -86,40 +95,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     if (onEditProfile) {
       onEditProfile();
     } else {
+      setPreviewInitialMode('edit');
       setActiveSubScreen('preview');
     }
   };
 
-  const handleManageInterests = () => {
-    setTempTagIds([...myTagIds]);
-    setShowInterestsModal(true);
-  };
-
-  const toggleTempInterest = (tagId: number) => {
-    if (tempTagIds.includes(tagId)) {
-      if (tempTagIds.length > 1) {
-        setTempTagIds(tempTagIds.filter((id) => id !== tagId));
-      } else {
-        Alert.alert('Minimum Interests', 'Keep at least 1 interest so matches know your vibe.');
-      }
-    } else if (tempTagIds.length < 8) {
-      setTempTagIds([...tempTagIds, tagId]);
-    } else {
-      Alert.alert('Maximum Reached', 'You can select up to 8 core interests.');
-    }
-  };
-
-  const handleSaveInterests = async () => {
-    setSavingInterests(true);
-    try {
-      await saveMyTags(user.id, tempTagIds);
-      await queryClient.invalidateQueries({ queryKey: ['my-tags', user.id] });
-      setShowInterestsModal(false);
-    } catch (e) {
-      Alert.alert('Could not save', errorMessage(e));
-    } finally {
-      setSavingInterests(false);
-    }
+  const handlePreviewPress = () => {
+    setPreviewInitialMode('preview');
+    setActiveSubScreen('preview');
   };
 
   const handleSettingItem = (title: string) => {
@@ -151,7 +134,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       <AccountSecurityScreen
         user={user}
         onBack={() => setActiveSubScreen('none')}
-        onPreviewProfile={() => setActiveSubScreen('preview')}
+        onPreviewProfile={() => {
+          setPreviewInitialMode('preview');
+          setActiveSubScreen('preview');
+        }}
       />
     );
   }
@@ -161,7 +147,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       <PreferencesScreen
         user={user}
         onBack={() => setActiveSubScreen('none')}
-        onPreviewProfile={() => setActiveSubScreen('preview')}
+        onPreviewProfile={() => {
+          setPreviewInitialMode('preview');
+          setActiveSubScreen('preview');
+        }}
       />
     );
   }
@@ -171,7 +160,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       <SafetyCenterScreen
         user={user}
         onBack={() => setActiveSubScreen('none')}
-        onPreviewProfile={() => setActiveSubScreen('preview')}
+        onPreviewProfile={() => {
+          setPreviewInitialMode('preview');
+          setActiveSubScreen('preview');
+        }}
       />
     );
   }
@@ -181,7 +173,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       <AppSettingsScreen
         user={user}
         onBack={() => setActiveSubScreen('none')}
-        onPreviewProfile={() => setActiveSubScreen('preview')}
+        onPreviewProfile={() => {
+          setPreviewInitialMode('preview');
+          setActiveSubScreen('preview');
+        }}
       />
     );
   }
@@ -190,6 +185,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     return (
       <ProfilePreviewScreen
         user={user}
+        initialMode={previewInitialMode}
         onBack={() => setActiveSubScreen('none')}
       />
     );
@@ -242,26 +238,50 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
 
 
-          {/* EDIT PROFILE & PHOTOS BUTTON */}
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleEditPress}
-            style={styles.editButtonWrapper}
-          >
-            <BrutalBox
-              backgroundColor="#FFFFFF"
-              borderColor={colors.borderBlack}
-              borderWidth={2.4}
-              borderRadius={16}
-              shadowOffset={3.5}
-              style={styles.editButton}
+          {/* PROFILE ACTIONS: EDIT PROFILE & PREVIEW CARD */}
+          <View style={styles.profileActionButtonsRow}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleEditPress}
+              style={styles.actionButtonWrapper}
+              accessibilityLabel="Edit Dating Profile"
             >
-              <View style={styles.editButtonContent}>
-                <Text style={styles.editButtonEmoji}>✏️</Text>
-                <Text style={styles.editButtonText}>EDIT PROFILE & PHOTOS</Text>
-              </View>
-            </BrutalBox>
-          </TouchableOpacity>
+              <BrutalBox
+                backgroundColor={colors.accentYellow}
+                borderColor={colors.borderBlack}
+                borderWidth={2.4}
+                borderRadius={16}
+                shadowOffset={3}
+                style={styles.actionButton}
+              >
+                <View style={styles.actionButtonContent}>
+                  <Ionicons name="pencil" size={15} color={colors.textDark} />
+                  <Text style={styles.actionButtonText}>EDIT PROFILE</Text>
+                </View>
+              </BrutalBox>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handlePreviewPress}
+              style={styles.actionButtonWrapper}
+              accessibilityLabel="Preview Public Profile Card"
+            >
+              <BrutalBox
+                backgroundColor="#FFFFFF"
+                borderColor={colors.borderBlack}
+                borderWidth={2.4}
+                borderRadius={16}
+                shadowOffset={3}
+                style={styles.actionButton}
+              >
+                <View style={styles.actionButtonContent}>
+                  <Ionicons name="eye" size={16} color={colors.textDark} />
+                  <Text style={styles.actionButtonText}>PREVIEW CARD</Text>
+                </View>
+              </BrutalBox>
+            </TouchableOpacity>
+          </View>
         </View>
 
 
@@ -308,15 +328,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 </Text>
                 <TouchableOpacity
                   activeOpacity={0.7}
-                  onPress={handleManageInterests}
+                  onPress={handleEditPress}
                 >
-                  <Text style={styles.manageLinkText}>MANAGE</Text>
+                  <Text style={styles.manageLinkText}>EDIT IN STUDIO</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Interest Pills */}
               <View style={styles.chipsContainer}>
-                {userInterests.length === 0 && <Text style={styles.bioBodyText}>No interests yet. Tap MANAGE to add some.</Text>}
+                {userInterests.length === 0 && (
+                  <Text style={styles.bioBodyText}>No interests yet. Tap EDIT IN STUDIO to add your vibe tags.</Text>
+                )}
                 {userInterests.map((interest, idx) => {
                   const pillColors = ['#FFD5E5', '#E2DCFE', '#FFE600', '#FAF7F2', '#D1FAE5', '#FEF08A'];
                   const bg = pillColors[idx % pillColors.length];
@@ -470,89 +492,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </View>
           </BrutalBox>
         </TouchableOpacity>
-
-        {/* 7. QUICK DEMO ACCOUNTS SWITCHER (dev builds only) */}
-        {onSwitchToDemo && (
-        <View style={styles.demoAccountsContainer}>
-          <BrutalBox
-            backgroundColor={colors.cardWhite}
-            borderColor={colors.borderBlack}
-            borderWidth={2.4}
-            borderRadius={18}
-            shadowOffset={{ x: 3.5, y: 3.5 }}
-            style={styles.fullWidth}
-            contentStyle={styles.demoAccountsCardContent}
-          >
-            <View style={styles.demoHeaderRow}>
-              <Ionicons name="flash" size={15} color="#D97706" />
-              <Text style={styles.demoHeaderTitle}>DEMO ACCOUNT QUICK SWITCH</Text>
-            </View>
-            <Text style={styles.demoHeaderSubtitle}>
-              Instantly switch test sessions without manual typing:
-            </Text>
-
-            <View style={styles.demoButtonsRow}>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => onSwitchToDemo?.('alex')}
-                style={styles.demoBtnItem}
-              >
-                <BrutalBox
-                  backgroundColor={user.email.includes('alex') ? colors.accentYellow : '#FAF7F2'}
-                  borderColor={colors.borderBlack}
-                  borderWidth={2}
-                  borderRadius={12}
-                  shadowOffset={{ x: 2, y: 2 }}
-                  contentStyle={styles.demoBtnItemContent}
-                >
-                  <Text style={styles.demoBtnItemEmoji}>⚡</Text>
-                  <Text style={styles.demoBtnItemLabel}>ALEX</Text>
-                  {user.email.includes('alex') && (
-                    <View style={styles.currentActiveDot} />
-                  )}
-                </BrutalBox>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => onSwitchToDemo?.('sam')}
-                style={styles.demoBtnItem}
-              >
-                <BrutalBox
-                  backgroundColor={user.email.includes('sam') ? colors.primaryPink : '#FAF7F2'}
-                  borderColor={colors.borderBlack}
-                  borderWidth={2}
-                  borderRadius={12}
-                  shadowOffset={{ x: 2, y: 2 }}
-                  contentStyle={styles.demoBtnItemContent}
-                >
-                  <Text style={styles.demoBtnItemEmoji}>❤️</Text>
-                  <Text style={[styles.demoBtnItemLabel, user.email.includes('sam') && { color: '#FFF' }]}>
-                    SAM
-                  </Text>
-                  {user.email.includes('sam') && (
-                    <View style={styles.currentActiveDot} />
-                  )}
-                </BrutalBox>
-              </TouchableOpacity>
-
-            </View>
-          </BrutalBox>
-        </View>
-        )}
-
-        {/* Developer Replay Mode for Quick Access */}
-        {onReplayOnboarding && (
-          <TouchableOpacity
-            style={styles.replayLink}
-            activeOpacity={0.7}
-            onPress={onReplayOnboarding}
-          >
-            <Text style={styles.replayLinkText}>
-              🔄 Replay 8 Onboarding Screens Flow
-            </Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Neo-Brutalist Logout Confirmation Modal */}
@@ -583,7 +522,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <Text style={styles.modalTitle}>LOG OUT OF P!NG?</Text>
                 <Text style={styles.modalSubtitle}>
                   Logged in as <Text style={{ fontFamily: typography.bodyBold }}>{displayName}</Text> ({user.email}).
-                  Your profile and preferences remain saved in the local demo database.
+                  Your profile and preferences stay saved to your account.
                 </Text>
 
                 <View style={styles.modalButtonsRow}>
@@ -620,113 +559,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       contentStyle={styles.modalBtnContent}
                     >
                       <Text style={styles.modalLogoutText}>YES, LOG OUT</Text>
-                    </BrutalBox>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </BrutalBox>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Neo-Brutalist Manage Profile Interests Modal */}
-      <Modal
-        visible={showInterestsModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowInterestsModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCardWrap}>
-            <BrutalBox
-              backgroundColor="#FFFFFF"
-              borderColor={colors.borderBlack}
-              borderWidth={3}
-              borderRadius={20}
-              shadowOffset={{ x: 5, y: 5 }}
-              contentStyle={styles.modalCardContent}
-            >
-              {/* Floating Tag */}
-              <View style={styles.modalTagWrapper}>
-                <View style={[styles.modalTag, { backgroundColor: colors.accentYellow }]}>
-                  <Text style={styles.modalTagText}>⚡ PROFILE VIBES</Text>
-                </View>
-              </View>
-
-              <View style={styles.modalBody}>
-                <Text style={styles.modalTitle}>MANAGE INTERESTS</Text>
-                <Text style={styles.modalSubtitle}>
-                  Select passions & hobbies to showcase on your card ({tempTagIds.length}/8 active).
-                </Text>
-
-                <View style={styles.modalVibesGrid}>
-                  {allTags.map((tag) => {
-                    const item = tag.name;
-                    const isSelected = tempTagIds.includes(tag.id);
-                    return (
-                      <TouchableOpacity
-                        key={tag.id}
-                        activeOpacity={0.75}
-                        onPress={() => toggleTempInterest(tag.id)}
-                        style={[
-                          styles.vibeChoiceChip,
-                          isSelected && styles.vibeChoiceChipActive,
-                        ]}
-                      >
-                        {isSelected && (
-                          <Ionicons name="checkmark" size={14} color="#000" style={{ marginRight: 4 }} />
-                        )}
-                        <Text
-                          style={[
-                            styles.vibeChoiceText,
-                            isSelected && styles.vibeChoiceTextActive,
-                          ]}
-                        >
-                          {item}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                <View style={styles.modalButtonsRow}>
-                  {/* Cancel */}
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => setShowInterestsModal(false)}
-                    style={styles.modalBtnHalf}
-                  >
-                    <BrutalBox
-                      backgroundColor="#EBE7E0"
-                      borderColor={colors.borderBlack}
-                      borderWidth={2.2}
-                      borderRadius={12}
-                      shadowOffset={{ x: 2.5, y: 2.5 }}
-                      contentStyle={styles.modalBtnContent}
-                    >
-                      <Text style={styles.modalCancelText}>CANCEL</Text>
-                    </BrutalBox>
-                  </TouchableOpacity>
-
-                  {/* Save Button */}
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={handleSaveInterests}
-                    style={styles.modalBtnHalf}
-                  >
-                    <BrutalBox
-                      backgroundColor={colors.accentYellow}
-                      borderColor={colors.borderBlack}
-                      borderWidth={2.2}
-                      borderRadius={12}
-                      shadowOffset={{ x: 2.5, y: 2.5 }}
-                      contentStyle={styles.modalBtnContent}
-                    >
-                      {savingInterests ? (
-                        <ActivityIndicator color="#000" />
-                      ) : (
-                        <Text style={[styles.modalCancelText, { color: '#000' }]}>SAVE VIBES ⚡</Text>
-                      )}
                     </BrutalBox>
                   </TouchableOpacity>
                 </View>
@@ -850,25 +682,28 @@ const styles = StyleSheet.create({
     color: colors.primaryPink,
     letterSpacing: 0.5,
   },
-  editButtonWrapper: {
+  profileActionButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
     width: '100%',
     marginTop: 16,
   },
-  editButton: {
+  actionButtonWrapper: {
+    flex: 1,
+  },
+  actionButton: {
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  editButtonContent: {
+  actionButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 6,
   },
-  editButtonEmoji: {
-    fontSize: 16,
-  },
-  editButtonText: {
-    fontSize: 16,
+  actionButtonText: {
+    fontSize: 13,
     fontFamily: typography.headingHero,
     color: colors.textDark,
     letterSpacing: 0.5,
@@ -1054,19 +889,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 1,
   },
-  replayLink: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  replayLinkText: {
-    fontSize: 12,
-    fontFamily: typography.bodyBold,
-    color: '#6B7280',
-    textDecorationLine: 'underline',
-  },
-  fullWidth: {
-    width: '100%',
-  },
 
   /* Neo-Brutalist Logout Modal */
   modalOverlay: {
@@ -1147,67 +969,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  /* Demo Accounts Quick Switcher */
-  demoAccountsContainer: {
-    marginTop: 6,
-    marginBottom: 10,
-    width: '100%',
-  },
-  demoAccountsCardContent: {
-    padding: 14,
-    gap: 8,
-  },
-  demoHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  demoHeaderTitle: {
-    fontSize: 12,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.5,
-  },
-  demoHeaderSubtitle: {
-    fontSize: 11.5,
-    fontFamily: typography.bodyMedium,
-    color: '#6B7280',
-  },
-  demoButtonsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  demoBtnItem: {
-    flex: 1,
-  },
-  demoBtnItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 42,
-    gap: 5,
-    paddingHorizontal: 6,
-    position: 'relative',
-  },
-  demoBtnItemEmoji: {
-    fontSize: 13,
-  },
-  demoBtnItemLabel: {
-    fontSize: 11.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.4,
-  },
-  currentActiveDot: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primaryPink,
-  },
   modalVibesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

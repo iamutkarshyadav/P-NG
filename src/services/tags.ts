@@ -21,28 +21,9 @@ export async function fetchMyTagIds(userId: string): Promise<number[]> {
   return rows.map((r) => r.tag_id);
 }
 
-/** Replaces the user's tags with exactly `tagIds` (1-8 enforced by the UI and the database). */
-export async function saveMyTags(userId: string, tagIds: number[]): Promise<void> {
-  // Try atomic database RPC first
-  const { error } = await supabase.rpc('set_my_tags', { p_tag_ids: tagIds });
-  if (!error) return;
-
-  // Fallback to delete-then-insert if RPC is not yet deployed
-  const current = await fetchMyTagIds(userId);
-  const toAdd = tagIds.filter((id) => !current.includes(id));
-  const toRemove = current.filter((id) => !tagIds.includes(id));
-  if (toRemove.length > 0) {
-    assertOk(
-      await supabase.from('profile_tags').delete().eq('user_id', userId).in('tag_id', toRemove)
-    );
-  }
-  if (toAdd.length > 0) {
-    assertOk(
-      await supabase
-        .from('profile_tags')
-        .insert(toAdd.map((tag_id) => ({ user_id: userId, tag_id })))
-    );
-  }
+/** Replaces the user's tags with exactly `tagIds` in one transaction (1-8 enforced by the database). */
+export async function saveMyTags(tagIds: number[]): Promise<void> {
+  assertOk(await supabase.rpc('set_my_tags', { p_tag_ids: tagIds }));
 }
 
 export async function fetchPromptSuggestions(): Promise<string[]> {

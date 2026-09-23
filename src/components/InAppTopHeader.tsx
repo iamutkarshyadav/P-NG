@@ -14,13 +14,15 @@ interface InAppTopHeaderProps {
   activeTab?: InAppTab;
   onPressFilter?: () => void;
   onPressAvatar?: () => void;
-  onPressSettings?: () => void;
+  likesCount?: number;
+  matchesCount?: number;
 }
 
 export const InAppTopHeader: React.FC<InAppTopHeaderProps> = ({
   activeTab = 'discover',
   onPressFilter,
-  onPressSettings,
+  likesCount = 0,
+  matchesCount = 0,
 }) => {
   return (
     <View style={styles.headerContainer}>
@@ -68,7 +70,9 @@ export const InAppTopHeader: React.FC<InAppTopHeaderProps> = ({
             contentStyle={styles.statusPillBadge}
           >
             <Ionicons name="flash" size={12} color="#000" />
-            <Text style={styles.statusPillText}>14 P!NGS</Text>
+            <Text style={styles.statusPillText}>
+              {likesCount > 0 ? `${likesCount > 99 ? '99+' : likesCount} ${likesCount === 1 ? 'P!NG' : 'P!NGS'}` : '0 P!NGS'}
+            </Text>
           </BrutalBox>
         )}
 
@@ -82,23 +86,8 @@ export const InAppTopHeader: React.FC<InAppTopHeaderProps> = ({
             contentStyle={styles.statusPillBadge}
           >
             <Ionicons name="chatbubbles" size={12} color="#000" />
-            <Text style={styles.statusPillText}>5 ACTIVE</Text>
+            <Text style={styles.statusPillText}>{matchesCount} ACTIVE</Text>
           </BrutalBox>
-        )}
-
-        {activeTab === 'profile' && (
-          <TouchableOpacity activeOpacity={0.8} onPress={onPressSettings}>
-            <BrutalBox
-              backgroundColor={colors.cardWhite}
-              borderColor={colors.borderBlack}
-              borderWidth={2}
-              borderRadius={999}
-              shadowOffset={{ x: 2.2, y: 2.2 }}
-              contentStyle={styles.iconButtonContent}
-            >
-              <Feather name="settings" size={17} color={colors.textDark} />
-            </BrutalBox>
-          </TouchableOpacity>
         )}
       </View>
     </View>

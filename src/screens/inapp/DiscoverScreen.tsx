@@ -26,6 +26,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { LAYOUT } from '../../theme/responsive';
 import { BrutalBox } from '../../components/BrutalBox';
+import { LifestyleBadges } from '../../components/LifestyleBadges';
 import { UserAccount } from '../../types/user';
 import { Image } from 'expo-image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -36,6 +37,7 @@ import { useSettings } from '../../hooks/useSettings';
 import { haptic } from '../../lib/haptics';
 import { paletteFor } from '../../lib/palette';
 import { activeLabel, distanceLabel } from '../../lib/format';
+import { DiscoveryProfileDetailScreen } from './DiscoveryProfileDetailScreen';
 import type { ChatTarget } from './MatchesScreen';
 
 interface DiscoverScreenProps {
@@ -43,8 +45,8 @@ interface DiscoverScreenProps {
   onOpenChat: (target: ChatTarget) => void;
 }
 
-// Vector character for Priya (Yellow leather jacket, sunglasses, choker, neon backdrop)
-function PriyaIllustration({ jacketColor, bg1, bg2 }: { jacketColor: string; bg1: string; bg2: string }) {
+// Generated character shown when a profile has no photo (yellow jacket, sunglasses, neon backdrop)
+function PlaceholderIllustration({ jacketColor, bg1, bg2 }: { jacketColor: string; bg1: string; bg2: string }) {
   return (
     <Svg width="100%" height="100%" viewBox="0 0 340 320" preserveAspectRatio="xMidYMid slice">
       <Defs>
@@ -178,6 +180,7 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
   const [busy, setBusy] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [match, setMatch] = useState<{ matchId: string; name: string; partnerId: string } | null>(null);
+  const [showExpandedProfile, setShowExpandedProfile] = useState(false);
 
   const queue = useMemo(() => {
     const remaining = (feed.data ?? []).filter((p) => !handled.includes(p.id));
@@ -253,7 +256,7 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
       if (!restored) {
         Alert.alert(
           'Nothing to rewind',
-          'You can rewind your last swipe within 10 minutes, as long as it has not become a match.'
+          'You can rewind your last swipe within 10 minutes, as long as it has not become a match. Super P!NGs cannot be rewound.'
         );
         return;
       }
@@ -333,7 +336,13 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
             style={styles.cardBox}
             contentStyle={styles.cardBoxContent}
           >
-            <View style={styles.photoContainer}>
+            <TouchableOpacity
+              activeOpacity={0.92}
+              style={styles.photoContainer}
+              onPress={() => setShowExpandedProfile(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`View full profile of ${current.name}`}
+            >
               {shownPhoto ? (
                 <Image
                   source={{ uri: shownPhoto }}
@@ -343,7 +352,7 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
                   accessibilityLabel={`Photo of ${current.name}`}
                 />
               ) : (
-                <PriyaIllustration jacketColor={palette.jacket} bg1={palette.bgFrom} bg2={palette.bgTo} />
+                <PlaceholderIllustration jacketColor={palette.jacket} bg1={palette.bgFrom} bg2={palette.bgTo} />
               )}
 
               {photoUrls.length > 1 && (
@@ -382,13 +391,22 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
                   ))}
                 </View>
               )}
-            </View>
+            </TouchableOpacity>
 
             <View style={styles.infoSection}>
               <View style={styles.nameRow}>
-                <Text style={styles.nameTitle}>
-                  {current.name.toUpperCase()}, {current.age}
-                </Text>
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  style={styles.nameTouch}
+                  onPress={() => setShowExpandedProfile(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="View full profile"
+                >
+                  <Text style={styles.nameTitle}>
+                    {current.name.toUpperCase()}, {current.age}
+                  </Text>
+                  <Feather name="arrow-up-right" size={17} color={colors.textDark} style={{ marginLeft: 5 }} />
+                </TouchableOpacity>
                 <MaterialCommunityIcons name="lightning-bolt" size={24} color={colors.primaryPink} />
               </View>
 
@@ -410,6 +428,9 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
               )}
 
               {current.bio ? <Text style={styles.bioText}>{current.bio}</Text> : null}
+
+              {/* Bumble-Style Compatibility & Lifestyle Badges */}
+              <LifestyleBadges profile={current} variant="compact" />
 
               {current.tags.length > 0 && (
                 <View style={styles.chipsRow}>
@@ -512,11 +533,145 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ user, onOpenChat
           </BrutalBox>
         </View>
       </Modal>
+
+      {/* Expanded Profile Viewer Screen */}
+      <Modal
+        visible={showExpandedProfile && Boolean(current)}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowExpandedProfile(false)}
+      >
+        {current && (
+          <DiscoveryProfileDetailScreen
+            candidate={current}
+            photoUrls={photoUrls}
+            pingsLeft={superpings.data}
+            onClose={() => setShowExpandedProfile(false)}
+            onAction={(action) => {
+              setShowExpandedProfile(false);
+              if (action === 'superping') {
+                handleSuperping();
+              } else {
+                act(action);
+              }
+            }}
+            onRewind={
+              handled.length > 0
+                ? () => {
+                    setShowExpandedProfile(false);
+                    handleRewind();
+                  }
+                : undefined
+            }
+          />
+        )}
+      </Modal>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  nameTouch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  profileModalWrap: {
+    flex: 1,
+    backgroundColor: '#FAF7F2',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 18 : 14,
+    paddingBottom: 14,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.borderBlack,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+    letterSpacing: 0.6,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1.8,
+    borderColor: colors.borderBlack,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalScrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+    gap: 18,
+    maxWidth: LAYOUT.shellMaxWidth,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  modalHeroCard: {
+    width: '100%',
+  },
+  modalHeroCardContent: {
+    padding: 0,
+  },
+  modalPhotoBox: {
+    width: '100%',
+    height: 320,
+    backgroundColor: colors.bgCream,
+    overflow: 'hidden',
+  },
+  modalHeroInfo: {
+    padding: 16,
+    gap: 6,
+  },
+  modalHeroName: {
+    fontSize: 22,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+  },
+  modalHeroCity: {
+    fontSize: 13,
+    fontFamily: typography.bodyBold,
+    color: colors.textMuted,
+  },
+  modalSectionCard: {
+    gap: 8,
+  },
+  modalSectionLabel: {
+    fontSize: 12,
+    fontFamily: typography.headline,
+    color: colors.textDark,
+    letterSpacing: 0.8,
+  },
+  modalBioContent: {
+    padding: 14,
+  },
+  modalBioText: {
+    fontSize: 14,
+    fontFamily: typography.bodyMedium,
+    color: colors.textDark,
+    lineHeight: 21,
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+    paddingTop: 10,
+  },
+  modalSuperpingBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   stateWrap: {
     flex: 1,
     alignItems: 'center',

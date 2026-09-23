@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { LAYOUT } from '../theme/responsive';
@@ -17,6 +17,7 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
+import { OnboardingHeadline } from '../components/OnboardingHeadline';
 import { UserAccount } from '../types/user';
 import { useQuery } from '@tanstack/react-query';
 import { fetchAllTags, fetchMyTagIds, saveMyTags } from '../services/tags';
@@ -92,12 +93,12 @@ export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
 
   const handleNext = async () => {
     if (selectedTagIds.length < 1) {
-      Alert.alert('Pick a tag', 'Choose at least one tag so people can see your vibe.');
+      Alert.alert('Pick a tag', 'Choose at least 1 vibe tag to showcase your vibe.');
       return;
     }
     setIsSaving(true);
     try {
-      await saveMyTags(user.id, selectedTagIds.map(Number));
+      await saveMyTags(selectedTagIds.map(Number));
       onNext(await updateProfile(user, { onboarding_step: 8 }));
     } catch (e) {
       Alert.alert('Could not save', errorMessage(e));
@@ -112,7 +113,7 @@ export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
       <DotGridBackground />
 
       {/* 1. Universal Neo-Brutalist Onboarding Top Header */}
-      <OnboardingTopHeader onBack={onBack} user={user} />
+      <OnboardingTopHeader onBack={onBack} onPrevStep={onBack} user={user} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -120,30 +121,13 @@ export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
       >
         <View style={styles.container}>
           <View style={styles.contentSection}>
-            {/* 2. Step Badge Pill */}
-            <View style={styles.stepBadgeWrapper}>
-              <BrutalBox
-                backgroundColor={colors.accentYellow}
-                borderColor={colors.borderBlack}
-                borderWidth={2.2}
-                borderRadius={999}
-                shadowOffset={{ x: 2.2, y: 2.2 }}
-                contentStyle={styles.stepBadgeContent}
-              >
-                <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
-                <Text style={styles.stepBadgeText}>
-                  STEP 07 / 08 • VIBE TAGS
-                </Text>
-              </BrutalBox>
-            </View>
-
-            {/* 3. Headline & Subtitle */}
-            <View style={styles.headlineWrapper}>
-              <Text style={styles.headlineTitle}>WHAT ARE YOU INTO?</Text>
-              <Text style={styles.subtitleText}>
-                Pick up to 8 tags. These help us match your vibe.
-              </Text>
-            </View>
+            {/* 2. Unified Headline with 5px Black Underline */}
+            <OnboardingHeadline
+              step="07"
+              line1="PICK YOUR"
+              focalWord="TOP PASSIONS"
+              subtitle="Pick up to 8 tags that define what you&apos;re all about."
+            />
 
             {/* 4. Category Filter Buttons */}
             <ScrollView
@@ -208,21 +192,18 @@ export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
               })}
             </View>
 
-            {/* 6. Tip Banner */}
+            {/* 6. Guidance Box */}
             <BrutalBox
-              backgroundColor={colors.lavender}
+              backgroundColor="#FFFFFF"
               borderColor={colors.borderBlack}
               borderWidth={2.4}
-              borderRadius={18}
+              borderRadius={16}
               shadowOffset={{ x: 3.5, y: 3.5 }}
               style={styles.fullWidth}
               contentStyle={styles.tipCardContent}
             >
-              <View style={styles.tipBoltBadge}>
-                <MaterialCommunityIcons name="lightning-bolt" size={17} color={colors.textDark} />
-              </View>
               <Text style={styles.tipText}>
-                Selected tags boost shared interest matching by 80%.
+                Your selected tags appear on your profile card to highlight shared interests.
               </Text>
             </BrutalBox>
           </View>
@@ -233,7 +214,9 @@ export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
       <View style={styles.bottomBarWrapper}>
         <OnboardingBottomBar
           onNext={handleNext}
-          onSkip={() => handleNext()}
+          onBack={onBack}
+          showSkip={false}
+          disabled={selectedTagIds.length < 1}
           isSaving={isSaving}
         />
       </View>
@@ -245,59 +228,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.bgCream,
-  },
-  headerBar: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 8,
-    gap: 12,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButtonContent: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniLogoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  miniLogoText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-  },
-  stepIndicatorText: {
-    fontSize: 12.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.6,
-  },
-  avatarButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    width: '87.5%', // Step 7 of 8
-    height: '100%',
-    backgroundColor: colors.primaryPink,
-    borderRadius: 999,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -327,45 +257,6 @@ const styles = StyleSheet.create({
   fullWidth: {
     width: '100%',
   },
-  stepBadgeWrapper: {
-    alignSelf: 'flex-start',
-    marginTop: 0,
-  },
-  stepBadgeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    gap: 6,
-  },
-  stepBadgeText: {
-    fontSize: 11,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.5,
-  },
-  headlineWrapper: {
-    width: '100%',
-    gap: 0,
-    marginTop: -8,
-    paddingTop: 2,
-    overflow: 'visible',
-  },
-  headlineTitle: {
-    fontSize: 34,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 38,
-    paddingTop: 1,
-  },
-  subtitleText: {
-    fontSize: 13,
-    fontFamily: typography.bodyMedium,
-    color: '#333',
-    lineHeight: 18,
-  },
-
   /* Categories Filter Row */
   categoriesRow: {
     flexDirection: 'row',
@@ -418,26 +309,13 @@ const styles = StyleSheet.create({
 
   /* Tip Banner */
   tipCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    gap: 12,
-  },
-  tipBoltBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.accentYellow,
-    borderWidth: 1.8,
-    borderColor: colors.borderBlack,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   tipText: {
-    flex: 1,
-    fontSize: 12.5,
+    fontSize: 12,
     fontFamily: typography.bodyBold,
-    color: colors.textDark,
+    color: '#4B5563',
     lineHeight: 17,
   },
 });

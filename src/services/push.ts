@@ -5,14 +5,16 @@ import { supabase } from '../lib/supabase';
 import { errorMessage } from './errors';
 
 // Show alerts while the app is open too, but stay quiet when the user is already in that chat.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export type PushResult =
   | { ok: true; token: string }

@@ -41,6 +41,15 @@
         }
       ],
       [
+        "expo-camera",
+        {
+          "cameraPermission": "P!NG uses your front camera to take your verification selfie.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
+        }
+      ],
+      [
         "expo-location",
         {
           "locationWhenInUsePermission": "P!NG uses your approximate location to show people nearby. Your exact position is never shared."

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,7 +20,8 @@ import { BrutalBox } from '../../components/BrutalBox';
 import { ProfileAvatar } from '../../components/ProfileAvatar';
 import { useSignedUrls } from '../../hooks/useSignedUrls';
 import { fetchMatches, MatchSummary } from '../../services/chat';
-import { unmatch } from '../../services/discover';
+import { unmatch, type FeedProfile } from '../../services/discover';
+import { DiscoveryProfileDetailScreen } from './DiscoveryProfileDetailScreen';
 import { errorMessage } from '../../services/errors';
 import { relativeShort } from '../../lib/format';
 import { UserAccount } from '../../types/user';
@@ -43,6 +45,41 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ user, onOpenChat }
   const conversations = matches.filter((m) => m.lastMessage);
 
   const urls = useSignedUrls(matches.map((m) => m.photoPath).filter((p): p is string => Boolean(p)));
+  const [selectedPartner, setSelectedPartner] = useState<MatchSummary | null>(null);
+
+  const selectedFeedProfile = useMemo<FeedProfile | null>(() => {
+    if (!selectedPartner) return null;
+    const feed = queryClient.getQueryData<FeedProfile[]>(['feed']);
+    const cached = feed?.find((f) => f.id === selectedPartner.partnerId);
+    if (cached) return cached;
+    return {
+      id: selectedPartner.partnerId,
+      name: selectedPartner.name,
+      age: selectedPartner.age ?? 24,
+      gender: null,
+      bio: null,
+      city: null,
+      distanceKm: null,
+      isVerified: selectedPartner.isVerified,
+      lastActiveAt: null,
+      tags: [],
+      photoPaths: selectedPartner.photoPath ? [selectedPartner.photoPath] : [],
+      languages: [],
+      prompts: [],
+    };
+  }, [selectedPartner, queryClient]);
+
+  const partnerPhotoPaths = useMemo(() => {
+    if (selectedFeedProfile?.photoPaths && selectedFeedProfile.photoPaths.length > 0) {
+      return selectedFeedProfile.photoPaths;
+    }
+    return selectedPartner?.photoPath ? [selectedPartner.photoPath] : [];
+  }, [selectedFeedProfile, selectedPartner]);
+
+  const partnerPhotoUrlsMap = useSignedUrls(partnerPhotoPaths);
+  const partnerPhotoUrls = useMemo(() => {
+    return partnerPhotoPaths.map((p) => partnerPhotoUrlsMap[p]).filter((u): u is string => Boolean(u));
+  }, [partnerPhotoPaths, partnerPhotoUrlsMap]);
 
   const open = (m: MatchSummary) =>
     onOpenChat({ matchId: m.matchId, partnerId: m.partnerId, partnerName: m.name });
@@ -86,155 +123,186 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ user, onOpenChat }
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={matchesQuery.isRefetching} onRefresh={() => matchesQuery.refetch()} tintColor={colors.primaryPink} colors={[colors.primaryPink]} />
-      }
-    >
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>MATCHES</Text>
-          <BrutalBox
-            backgroundColor={colors.accentYellow}
-            borderColor={colors.borderBlack}
-            borderWidth={2.2}
-            borderRadius={999}
-            shadowOffset={3}
-            style={styles.activeChatsBadge}
-          >
-            <View style={styles.badgeContent}>
-              <Ionicons name="flash" size={13} color={colors.textDark} />
-              <Text style={styles.badgeText}>
-                {conversations.length} ACTIVE {conversations.length === 1 ? 'CHAT' : 'CHATS'}
+    <>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={matchesQuery.isRefetching} onRefresh={() => matchesQuery.refetch()} tintColor={colors.primaryPink} colors={[colors.primaryPink]} />
+        }
+      >
+        <View style={styles.container}>
+          <View style={styles.headerRow}>
+            <Text style={styles.headerTitle}>MATCHES</Text>
+            <BrutalBox
+              backgroundColor={colors.accentYellow}
+              borderColor={colors.borderBlack}
+              borderWidth={2.2}
+              borderRadius={999}
+              shadowOffset={3}
+              style={styles.activeChatsBadge}
+            >
+              <View style={styles.badgeContent}>
+                <Ionicons name="flash" size={13} color={colors.textDark} />
+                <Text style={styles.badgeText}>
+                  {conversations.length} ACTIVE {conversations.length === 1 ? 'CHAT' : 'CHATS'}
+                </Text>
+              </View>
+            </BrutalBox>
+          </View>
+
+          {matches.length === 0 && (
+            <View style={styles.emptyBlock}>
+              <MaterialCommunityIcons name="heart-broken-outline" size={40} color={colors.textDark} />
+              <Text style={styles.stateTitle}>NO MATCHES YET</Text>
+              <Text style={styles.stateBody}>
+                When you and another member both P!NG each other, they will appear here. Head over to Discover to meet
+                someone.
               </Text>
             </View>
-          </BrutalBox>
-        </View>
+          )}
 
-        {matches.length === 0 && (
-          <View style={styles.emptyBlock}>
-            <MaterialCommunityIcons name="heart-outline" size={40} color={colors.primaryPink} />
-            <Text style={styles.stateTitle}>NO MATCHES YET</Text>
-            <Text style={styles.stateBody}>
-              When you and someone else both P!NG each other, they show up here. Keep swiping on Discover.
-            </Text>
-          </View>
-        )}
-
-        {fresh.length > 0 && (
-          <>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>NEW MATCHES</Text>
-              <BrutalBox
-                backgroundColor={colors.primaryPink}
-                borderColor={colors.borderBlack}
-                borderWidth={2}
-                borderRadius={999}
-                shadowOffset={2.5}
-                style={styles.newBadge}
-              >
-                <View style={styles.newBadgeContent}>
-                  <Ionicons name="flash" size={12} color="#FFFFFF" />
-                  <Text style={styles.newBadgeText}>{fresh.length} NEW</Text>
-                </View>
-              </BrutalBox>
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.matchesScroll}>
-              {fresh.map((m) => (
-                <TouchableOpacity
-                  key={m.matchId}
-                  style={styles.matchItem}
-                  activeOpacity={0.8}
-                  onPress={() => open(m)}
-                  onLongPress={() => confirmUnmatch(m)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Start chatting with ${m.name}`}
+          {fresh.length > 0 && (
+            <>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>NEW MATCHES</Text>
+                <BrutalBox
+                  backgroundColor={colors.primaryPink}
+                  borderColor={colors.borderBlack}
+                  borderWidth={2}
+                  borderRadius={999}
+                  shadowOffset={2.5}
+                  style={styles.newBadge}
                 >
-                  <View style={styles.avatarWrapper}>
-                    <View style={styles.avatarCircle}>
-                      <ProfileAvatar uri={m.photoPath ? urls[m.photoPath] : null} seed={m.partnerId} size={64} />
-                    </View>
+                  <View style={styles.newBadgeContent}>
+                    <Ionicons name="flash" size={12} color="#FFFFFF" />
+                    <Text style={styles.newBadgeText}>{fresh.length} NEW</Text>
                   </View>
-                  <Text style={styles.matchName}>
-                    {m.name}
-                    {m.age ? `, ${m.age}` : ''}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </>
-        )}
+                </BrutalBox>
+              </View>
 
-        {conversations.length > 0 && (
-          <>
-            <View style={styles.conversationsHeaderRow}>
-              <Text style={styles.sectionTitle}>CONVERSATIONS</Text>
-              <Text style={styles.activeCounter}>{conversations.length} ACTIVE</Text>
-            </View>
-
-            {conversations.map((m) => {
-              const mine = m.lastSenderId === user.id;
-              return (
-                <TouchableOpacity
-                  key={m.matchId}
-                  activeOpacity={0.85}
-                  onPress={() => open(m)}
-                  onLongPress={() => confirmUnmatch(m)}
-                  style={styles.convCardContainer}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Open conversation with ${m.name}${m.unreadCount > 0 ? `, ${m.unreadCount} unread` : ''}`}
-                >
-                  <BrutalBox
-                    backgroundColor="#FFFFFF"
-                    borderColor={colors.borderBlack}
-                    borderWidth={2.4}
-                    borderRadius={18}
-                    shadowOffset={{ x: 3, y: 3 }}
-                    contentStyle={styles.convCard}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.matchesScroll}>
+                {fresh.map((m) => (
+                  <TouchableOpacity
+                    key={m.matchId}
+                    style={styles.matchItem}
+                    activeOpacity={0.8}
+                    onPress={() => open(m)}
+                    onLongPress={() => confirmUnmatch(m)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Start chatting with ${m.name}`}
                   >
-                    <View style={styles.convRow}>
-                      <View style={styles.convAvatarWrap}>
-                        <View style={styles.convAvatarBorder}>
-                          <ProfileAvatar uri={m.photoPath ? urls[m.photoPath] : null} seed={m.partnerId} size={56} />
-                        </View>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setSelectedPartner(m)}
+                      style={styles.avatarWrapper}
+                      accessibilityRole="button"
+                      accessibilityLabel={`View ${m.name}'s profile`}
+                    >
+                      <View style={styles.avatarCircle}>
+                        <ProfileAvatar uri={m.photoPath ? urls[m.photoPath] : null} seed={m.partnerId} size={64} />
                       </View>
+                    </TouchableOpacity>
+                    <Text style={styles.matchName}>
+                      {m.name}
+                      {m.age ? `, ${m.age}` : ''}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
 
-                      <View style={styles.convDetails}>
-                        <View style={styles.convTopLine}>
-                          <Text style={styles.convName}>
-                            {m.name}
-                            {m.age ? `, ${m.age}` : ''}
-                          </Text>
-                          {m.lastMessageAt && <Text style={styles.convTime}>{relativeShort(m.lastMessageAt)}</Text>}
-                        </View>
+          {conversations.length > 0 && (
+            <>
+              <View style={styles.conversationsHeaderRow}>
+                <Text style={styles.sectionTitle}>CONVERSATIONS</Text>
+                <Text style={styles.activeCounter}>{conversations.length} ACTIVE</Text>
+              </View>
 
-                        <Text style={m.unreadCount > 0 ? styles.convSnippet : styles.convSnippetMuted} numberOfLines={1}>
-                          {mine ? 'You: ' : ''}
-                          {m.lastMessage}
-                        </Text>
-
-                        {m.unreadCount > 0 && (
-                          <View style={styles.convBottomLine}>
-                            <View />
-                            <View style={styles.unreadCountBadge}>
-                              <Text style={styles.unreadCountText}>{m.unreadCount}</Text>
-                            </View>
+              {conversations.map((m) => {
+                const mine = m.lastSenderId === user.id;
+                return (
+                  <TouchableOpacity
+                    key={m.matchId}
+                    activeOpacity={0.85}
+                    onPress={() => open(m)}
+                    onLongPress={() => confirmUnmatch(m)}
+                    style={styles.convCardContainer}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open conversation with ${m.name}${m.unreadCount > 0 ? `, ${m.unreadCount} unread` : ''}`}
+                  >
+                    <BrutalBox
+                      backgroundColor="#FFFFFF"
+                      borderColor={colors.borderBlack}
+                      borderWidth={2.4}
+                      borderRadius={18}
+                      shadowOffset={{ x: 3, y: 3 }}
+                      contentStyle={styles.convCard}
+                    >
+                      <View style={styles.convRow}>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => setSelectedPartner(m)}
+                          style={styles.convAvatarWrap}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View ${m.name}'s profile`}
+                        >
+                          <View style={styles.convAvatarBorder}>
+                            <ProfileAvatar uri={m.photoPath ? urls[m.photoPath] : null} seed={m.partnerId} size={56} />
                           </View>
-                        )}
+                        </TouchableOpacity>
+
+                        <View style={styles.convDetails}>
+                          <View style={styles.convTopLine}>
+                            <Text style={styles.convName}>
+                              {m.name}
+                              {m.age ? `, ${m.age}` : ''}
+                            </Text>
+                            {m.lastMessageAt && <Text style={styles.convTime}>{relativeShort(m.lastMessageAt)}</Text>}
+                          </View>
+
+                          <Text style={m.unreadCount > 0 ? styles.convSnippet : styles.convSnippetMuted} numberOfLines={1}>
+                            {mine ? 'You: ' : ''}
+                            {m.lastMessage}
+                          </Text>
+
+                          {m.unreadCount > 0 && (
+                            <View style={styles.convBottomLine}>
+                              <View />
+                              <View style={styles.unreadCountBadge}>
+                                <Text style={styles.unreadCountText}>{m.unreadCount}</Text>
+                              </View>
+                            </View>
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  </BrutalBox>
-                </TouchableOpacity>
-              );
-            })}
-            <Text style={styles.hintText}>Tip: press and hold a match to unmatch.</Text>
-          </>
+                    </BrutalBox>
+                  </TouchableOpacity>
+                );
+              })}
+              <Text style={styles.hintText}>Tip: press and hold a match to unmatch.</Text>
+            </>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Match Partner Profile Inspection Modal */}
+      <Modal
+        visible={!!selectedPartner && !!selectedFeedProfile}
+        animationType="slide"
+        onRequestClose={() => setSelectedPartner(null)}
+      >
+        {selectedPartner && selectedFeedProfile && (
+          <DiscoveryProfileDetailScreen
+            candidate={selectedFeedProfile}
+            photoUrls={partnerPhotoUrls}
+            onClose={() => setSelectedPartner(null)}
+            showActions={false}
+          />
         )}
-      </View>
-    </ScrollView>
+      </Modal>
+    </>
   );
 };
 

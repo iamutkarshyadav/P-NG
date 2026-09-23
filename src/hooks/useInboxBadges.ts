@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchLikesCount } from '../services/discover';
-import { fetchMatches, subscribeToInbox } from '../services/chat';
+import { MatchSummary, applyMessageToMatches, fetchMatches, subscribeToInbox } from '../services/chat';
 
 /** Live counts for the bottom nav: people who liked you, and whether any chat needs attention. */
 export function useInboxBadges(userId: string) {
@@ -9,17 +9,30 @@ export function useInboxBadges(userId: string) {
   const likesCountQuery = useQuery({ queryKey: ['likes-count'], queryFn: fetchLikesCount, refetchInterval: 60_000 });
   const matches = useQuery({ queryKey: ['matches'], queryFn: fetchMatches });
 
-  // New messages/matches arrive in realtime (RLS limits events to the user's own matches).
-  useEffect(
-    () =>
-      subscribeToInbox(userId, (event) => {
+  // New messages/matches arrive in realtime (RLS limits events to the user's own matches). A message for a chat we
+  // already list is applied to the cached list directly; only new/ended matches trigger a (debounced) refetch.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refreshSoon = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
         queryClient.invalidateQueries({ queryKey: ['matches'] });
-        if (event === 'match') {
-          queryClient.invalidateQueries({ queryKey: ['likes-count'] });
-        }
-      }),
-    [userId, queryClient]
-  );
+        queryClient.invalidateQueries({ queryKey: ['likes-count'] });
+      }, 600);
+    };
+    const unsubscribe = subscribeToInbox(userId, (change) => {
+      if (change.kind === 'match') return refreshSoon();
+      const current = queryClient.getQueryData<MatchSummary[]>(['matches']);
+      const next = current ? applyMessageToMatches(current, change.message, userId) : null;
+      if (next) queryClient.setQueryData(['matches'], next);
+      else refreshSoon();
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [userId, queryClient]);
 
   return {
     likesCount: likesCountQuery.data ?? 0,

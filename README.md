@@ -20,16 +20,11 @@ eas init                        # creates the EAS project id (needed for push to
 eas build --profile development --platform android   # or ios
 ```
 
-Checks: `npm run typecheck`, and `npm run smoke` (live end-to-end test against the dev Supabase project).
+Checks: `npm run typecheck`.
 
-## Test accounts (dev builds only)
+## Testing
 
-| Account | How it behaves |
-|---|---|
-| **Alex** `alex@ping.app` / `password123` | Seeded, fully onboarded: 3 matches with chats, 9 people who liked him, feed of ~30 candidates. Tap **ALEX** on the login screen. |
-| **Sam** `sam@ping.app` / `password123` | Recreated from scratch each time you tap **SAM**, so sign-up and all 8 onboarding steps run for real. After onboarding the seeded candidates are moved next to Sam's location and five of them like Sam. |
-
-The quick-fill bar only renders when `__DEV__` and `EXPO_PUBLIC_ENABLE_DEV_LOGINS=true`.
+The app ships with no seeded or demo accounts. Create test accounts through the normal sign-up flow (two accounts of different genders that match each other's preferences are enough to exercise Discover, Likes, Matches and Chat). Until at least one other onboarded profile exists, Discover shows its empty state.
 
 ## Architecture
 
@@ -38,14 +33,14 @@ app (Expo)  ── supabase-js ──>  Auth        email/password + Google OAut
                                 Postgres    RLS on every table; other people are only reachable through RPCs
                                 Storage     private profile-photos / selfies buckets, signed URLs
                                 Realtime    messages + matches
-                                Edge Fns    delete-account, notify-push, dev-reset-user (dev only)
+                                Edge Fns    delete-account, notify-push
 ```
 
 - `src/lib`: env validation, Supabase client, palette/format helpers
 - `src/services`: one module per domain (auth, profile, photos, tags, discover, chat, safety, push, account, location, appLock)
 - `src/providers/SessionProvider.tsx`: session + profile; onboarding resumes from `profiles.onboarding_step`
 - `src/hooks`: React Query hooks (photos, settings, signed URLs, inbox badges)
-- `supabase/migrations`: the schema, applied in order. `supabase/seed-dev.sql`, `supabase/push-config.sql`, `supabase/reset-alex.sql`, `supabase/review-verification.sql` are run by hand (never as migrations).
+- `supabase/migrations`: the schema, applied in order. `supabase/push-config.sql`, `supabase/review-verification.sql` and `supabase/review-reports.sql` are run by hand (never as migrations). Nothing in this repo creates accounts or demo data.
 
 Privacy model: the client only ever receives a distance bucket and an age for other people, never coordinates or birthdays. Exact locations are rounded to ~1 km before they are stored.
 
@@ -53,9 +48,7 @@ Privacy model: the client only ever receives a distance bucket and an age for ot
 
 1. Create the project, then apply every file in `supabase/migrations` in order.
 2. Run `supabase/push-config.sql` (replace `<project-ref>`), then deploy `supabase/functions/delete-account` (verify JWT on) and `notify-push` (verify JWT off; it authenticates with the shared secret).
-3. **Do not** run `seed-dev.sql` or deploy `dev-reset-user` on production. Their gate (`app_config.dev_tools_enabled`) simply does not exist there.
-4. Auth settings (dashboard > Authentication): keep **Confirm email** on for production, set a minimum password length of 8, and add these redirect URLs: `ping://auth-callback`, your web origin, and the `exp://…` URL Expo prints while developing.
-5. Set `EXPO_PUBLIC_ENABLE_DEV_LOGINS=false` (or leave it out) for production builds.
+3. Auth settings (dashboard > Authentication): keep **Confirm email** on for production, set a minimum password length of 8, and add these redirect URLs: `ping://auth-callback`, your web origin, and the `exp://…` URL Expo prints while developing.
 
 ## Things only you can do
 

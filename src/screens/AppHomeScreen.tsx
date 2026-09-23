@@ -19,7 +19,7 @@ import { ChatScreen } from './inapp/ChatScreen';
 import { PreferencesScreen } from './inapp/PreferencesScreen';
 import { UserAccount } from '../types/user';
 import { useInboxBadges } from '../hooks/useInboxBadges';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { onNotificationOpened, registerForPush } from '../services/push';
 import { fetchMatches } from '../services/chat';
 import type { ChatTarget } from './inapp/MatchesScreen';
@@ -27,20 +27,24 @@ import type { ChatTarget } from './inapp/MatchesScreen';
 interface AppHomeScreenProps {
   user: UserAccount;
   onLogout: () => void;
-  onSwitchToDemo?: (demo: 'alex' | 'sam') => void;
-  onReplayOnboarding?: () => void;
 }
 
 export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
   user,
   onLogout,
-  onSwitchToDemo,
-  onReplayOnboarding,
 }) => {
   const [activeTab, setActiveTab] = useState<InAppTab>('discover');
   const [activeChat, setActiveChat] = useState<ChatTarget | null>(null);
   const { likesCount, hasUnreadMatches } = useInboxBadges(user.id);
   const queryClient = useQueryClient();
+
+  const { data: matchesData } = useQuery({
+    queryKey: ['matches'],
+    queryFn: fetchMatches,
+    enabled: !!user.id,
+    staleTime: 1000 * 30,
+  });
+  const matchesCount = matchesData?.length ?? 0;
 
   // Ask for notification permission once the user is inside the app, and keep the token fresh.
   useEffect(() => {
@@ -148,9 +152,8 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
           activeTab={activeTab}
           onPressFilter={handleOpenFilter}
           onPressAvatar={() => setActiveTab('profile')}
-          onPressSettings={() => {
-            setProfileSubScreen('settings');
-          }}
+          likesCount={likesCount}
+          matchesCount={matchesCount}
         />
       )}
 
@@ -165,8 +168,6 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
           <ProfileScreen
             user={user}
             onLogout={onLogout}
-            onSwitchToDemo={onSwitchToDemo}
-            onReplayOnboarding={onReplayOnboarding}
             onSubScreenChange={(isSub) => setIsProfileSubScreenActive(isSub)}
             initialSubScreen={profileSubScreen}
           />

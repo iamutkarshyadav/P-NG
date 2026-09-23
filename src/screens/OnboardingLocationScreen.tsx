@@ -26,10 +26,10 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
+import { OnboardingHeadline } from '../components/OnboardingHeadline';
 import { UserAccount } from '../types/user';
 import { shareCurrentLocation } from '../services/location';
 import { completeOnboarding, fetchUser, setLocation } from '../services/profile';
-import { moveSeedsNearMe } from '../services/auth';
 import { errorMessage } from '../services/errors';
 
 // Manual fallback when location permission is denied or unavailable.
@@ -185,8 +185,6 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
     setIsSaving(true);
     try {
       await completeOnboarding();
-      // Dev only: bring the seeded candidates next to this tester (no-op in production builds).
-      await moveSeedsNearMe();
       onComplete(await fetchUser(user.id, user.email));
     } catch (e) {
       Alert.alert('Almost there', errorMessage(e));
@@ -201,7 +199,7 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
       <DotGridBackground />
 
       {/* 1. Universal Neo-Brutalist Onboarding Top Header */}
-      <OnboardingTopHeader onBack={onBack} user={user} />
+      <OnboardingTopHeader onBack={onBack} onPrevStep={onBack} user={user} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -209,30 +207,13 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
       >
         <View style={styles.container}>
           <View style={styles.contentSection}>
-            {/* 2. Step Badge Pill */}
-            <View style={styles.stepBadgeWrapper}>
-              <BrutalBox
-                backgroundColor={colors.accentYellow}
-                borderColor={colors.borderBlack}
-                borderWidth={2.2}
-                borderRadius={999}
-                shadowOffset={{ x: 2.2, y: 2.2 }}
-                contentStyle={styles.stepBadgeContent}
-              >
-                <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
-                <Text style={styles.stepBadgeText}>
-                  STEP 08 / 08 • THE FINAL STEP
-                </Text>
-              </BrutalBox>
-            </View>
-
-            {/* 3. Headline & Subtitle */}
-            <View style={styles.headlineWrapper}>
-              <Text style={styles.headlineTitle}>WHERE SHOULD WE LOOK?</Text>
-              <Text style={styles.subtitleText}>
-                We only ever show others a rough distance, never your exact location.
-              </Text>
-            </View>
+            {/* 2. Unified Headline with 5px Black Underline */}
+            <OnboardingHeadline
+              step="08"
+              line1="WHERE ARE"
+              focalWord="YOU BASED?"
+              subtitle="We only ever show others a rough distance, never your exact location."
+            />
 
             {/* 4. Radar Map Graphic Card */}
             <View style={styles.radarCardWrapper}>
@@ -249,7 +230,7 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
                 {/* Top Right "POP RADAR" Angled Badge */}
                 <View style={styles.popRadarBadgeWrapper}>
                   <View style={styles.popRadarBadge}>
-                    <MaterialCommunityIcons name="lightning-bolt" size={13} color="#FFE600" />
+                    <MaterialCommunityIcons name="radar" size={14} color="#FFE600" />
                     <Text style={styles.popRadarText}>POP RADAR</Text>
                   </View>
                 </View>
@@ -335,7 +316,7 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
 
             {/* 6. Action Buttons */}
             <View style={styles.actionButtonsContainer}>
-              {/* Primary "⚡ ALLOW LOCATION" Button */}
+              {/* Primary ALLOW LOCATION Button */}
               <BrutalBox
                 backgroundColor={locationAllowed ? '#86EFAC' : colors.accentYellow}
                 borderColor={colors.borderBlack}
@@ -347,7 +328,7 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
                 contentStyle={styles.allowLocationContent}
               >
                 <MaterialCommunityIcons
-                  name={locationAllowed ? 'check-bold' : 'lightning-bolt'}
+                  name={locationAllowed ? 'check-bold' : 'crosshairs-gps'}
                   size={20}
                   color={colors.textDark}
                 />
@@ -356,7 +337,7 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
                 </Text>
               </BrutalBox>
 
-              {/* Secondary "🏙️ PICK MY CITY INSTEAD" Button */}
+              {/* Secondary PICK MY CITY INSTEAD Button */}
               <BrutalBox
                 backgroundColor={colors.cardWhite}
                 borderColor={colors.borderBlack}
@@ -396,12 +377,13 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
         </View>
       </ScrollView>
 
-      {/* 7. Pinned Bottom Action Buttons */}
+      {/* 7. Pinned Bottom Action Button */}
       <View style={styles.bottomBarWrapper}>
         <OnboardingBottomBar
           onNext={handleFinish}
-          onSkip={() => handleFinish()}
+          onBack={onBack}
           nextText={isSaving ? 'LAUNCHING...' : 'ENTER P!NG ➔'}
+          showSkip={false}
           isSaving={isSaving}
         />
       </View>
@@ -432,59 +414,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bgCream,
   },
-  headerBar: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 8,
-    gap: 12,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButtonContent: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniLogoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  miniLogoText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-  },
-  stepIndicatorText: {
-    fontSize: 12.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.6,
-  },
-  avatarButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    width: '100%', // Step 8 of 8
-    height: '100%',
-    backgroundColor: colors.primaryPink,
-    borderRadius: 999,
-  },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
@@ -512,44 +441,6 @@ const styles = StyleSheet.create({
   },
   fullWidth: {
     width: '100%',
-  },
-  stepBadgeWrapper: {
-    alignSelf: 'flex-start',
-    marginTop: 0,
-  },
-  stepBadgeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    gap: 6,
-  },
-  stepBadgeText: {
-    fontSize: 11,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.5,
-  },
-  headlineWrapper: {
-    width: '100%',
-    gap: 0,
-    marginTop: -8,
-    paddingTop: 2,
-    overflow: 'visible',
-  },
-  headlineTitle: {
-    fontSize: 34,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 38,
-    paddingTop: 1,
-  },
-  subtitleText: {
-    fontSize: 13,
-    fontFamily: typography.bodyMedium,
-    color: '#333',
-    lineHeight: 18,
   },
 
   /* Radar Card */

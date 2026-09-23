@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { LAYOUT } from '../theme/responsive';
@@ -17,6 +16,7 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
+import { OnboardingHeadline } from '../components/OnboardingHeadline';
 import { UserAccount } from '../types/user';
 import { PhotoGrid } from '../components/PhotoGrid';
 import { usePhotos } from '../hooks/usePhotos';
@@ -65,7 +65,7 @@ export const OnboardingPhotosScreen: React.FC<OnboardingPhotosScreenProps> = ({
       <DotGridBackground />
 
       {/* 1. Universal Neo-Brutalist Onboarding Top Header */}
-      <OnboardingTopHeader onBack={onBack} user={user} />
+      <OnboardingTopHeader onBack={onBack} onPrevStep={onBack} user={user} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -73,44 +73,17 @@ export const OnboardingPhotosScreen: React.FC<OnboardingPhotosScreenProps> = ({
       >
         <View style={styles.container}>
           <View style={styles.contentSection}>
-            {/* 2. Step Badge Pill */}
-            <View style={styles.stepBadgeWrapper}>
-              <BrutalBox
-                backgroundColor={colors.accentYellow}
-                borderColor={colors.borderBlack}
-                borderWidth={2.2}
-                borderRadius={999}
-                shadowOffset={{ x: 2.2, y: 2.2 }}
-                contentStyle={styles.stepBadgeContent}
-              >
-                <MaterialCommunityIcons name="lightning-bolt" size={15} color={colors.textDark} />
-                <Text style={styles.stepBadgeText}>
-                  STEP 05 / 08 • VIBE CHECK
-                </Text>
-              </BrutalBox>
-            </View>
-
-            {/* 3. Headline & Subtitle Row */}
-            <View style={styles.headlineWrapper}>
-              <Text style={styles.headlineTitle}>ADD YOUR PHOTOS</Text>
-              <View style={styles.subtitleRow}>
-                <Text style={styles.subtitleText}>Add at least 2 real photos</Text>
-                <BrutalBox
-                  backgroundColor="#FFD8E4"
-                  borderColor={colors.borderBlack}
-                  borderWidth={2}
-                  borderRadius={999}
-                  shadowOffset={{ x: 2, y: 2 }}
-                  contentStyle={styles.soFarPillContent}
-                >
-                  <Text style={styles.soFarPillText}>{photos.length}/6 SO FAR</Text>
-                </BrutalBox>
-              </View>
-            </View>
+            {/* 2. Unified Headline with 5px Black Underline */}
+            <OnboardingHeadline
+              step="05"
+              line1="ADD YOUR"
+              focalWord="BEST PHOTOS"
+              subtitle="Add at least 2 real photos to showcase your vibe."
+            />
 
             {/* 4. 6-Slot Photo Grid (real uploads) */}
             {loadError ? (
-              <Text style={styles.subtitleText}>Could not load your photos: {errorMessage(loadError)}</Text>
+              <Text style={styles.statusText}>Could not load your photos: {errorMessage(loadError)}</Text>
             ) : (
               <PhotoGrid
                 photos={photos}
@@ -121,37 +94,26 @@ export const OnboardingPhotosScreen: React.FC<OnboardingPhotosScreenProps> = ({
                 minPhotos={MIN_PHOTOS}
               />
             )}
-            {isLoading && <Text style={styles.subtitleText}>Loading your photos...</Text>}
+            {isLoading && <Text style={styles.statusText}>Loading your photos...</Text>}
 
-          {/* 5. Tip Container */}
+          {/* 5. Consolidated Photo Guidelines Container */}
           <BrutalBox
-            backgroundColor={colors.lavender}
+            backgroundColor="#FFFFFF"
             borderColor={colors.borderBlack}
             borderWidth={2.4}
-            borderRadius={18}
-            shadowOffset={{ x: 3.5, y: 3.5 }}
-            style={styles.fullWidth}
-            contentStyle={styles.tipCardContent}
-          >
-            <View style={styles.tipIconBadge}>
-              <MaterialCommunityIcons name="lightbulb-on" size={18} color="#4338CA" />
-            </View>
-            <Text style={styles.tipText}>
-              Your first photo is what people see on Discover. Make it punchy!
-            </Text>
-          </BrutalBox>
-
-          {/* 6. Rules Container */}
-          <BrutalBox
-            backgroundColor={colors.cardWhite}
-            borderColor={colors.borderBlack}
-            borderWidth={2.2}
             borderRadius={16}
             shadowOffset={{ x: 3.5, y: 3.5 }}
             style={styles.fullWidth}
-            contentStyle={styles.rulesCardContent}
+            contentStyle={styles.guidelinesContent}
           >
-            <Text style={styles.rulesHeader}>RULES:</Text>
+            <View style={styles.guidelinesHeaderRow}>
+              <View style={styles.guidelinesTag}>
+                <Text style={styles.guidelinesTagText}>PHOTO GUIDELINES</Text>
+              </View>
+            </View>
+            <Text style={styles.guidelinesMainText}>
+              Your first photo is your cover on Discover. Use clear, solo photos with good lighting.
+            </Text>
             <View style={styles.rulesItemsRow}>
               <Text style={styles.ruleItemText}>NO SUNGLASSES ONLY</Text>
               <View style={styles.ruleDot} />
@@ -164,11 +126,12 @@ export const OnboardingPhotosScreen: React.FC<OnboardingPhotosScreenProps> = ({
         </View>
       </ScrollView>
 
-      {/* 7. Pinned Bottom Action Buttons */}
+      {/* 7. Pinned Bottom Action Button */}
       <View style={styles.bottomBarWrapper}>
         <OnboardingBottomBar
           onNext={handleNext}
-          onSkip={() => handleNext()}
+          onBack={onBack}
+          showSkip={false}
           isSaving={isSaving}
         />
       </View>
@@ -180,59 +143,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.bgCream,
-  },
-  headerBar: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 8,
-    gap: 12,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButtonContent: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniLogoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  miniLogoText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-  },
-  stepIndicatorText: {
-    fontSize: 12.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.6,
-  },
-  avatarButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    width: '62.5%', // Step 5 of 8
-    height: '100%',
-    backgroundColor: colors.primaryPink,
-    borderRadius: 999,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -262,58 +172,11 @@ const styles = StyleSheet.create({
   fullWidth: {
     width: '100%',
   },
-  stepBadgeWrapper: {
-    alignSelf: 'flex-start',
-    marginTop: 0,
-  },
-  stepBadgeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    gap: 6,
-  },
-  stepBadgeText: {
-    fontSize: 11,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.5,
-  },
-  headlineWrapper: {
-    width: '100%',
-    gap: 0,
-    marginTop: -8,
-    paddingTop: 2,
-    overflow: 'visible',
-  },
-  headlineTitle: {
-    fontSize: 34,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 38,
-    paddingTop: 1,
-  },
-  subtitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  subtitleText: {
+  statusText: {
     fontSize: 13,
     fontFamily: typography.bodyMedium,
-    color: '#333',
-  },
-  soFarPillContent: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  soFarPillText: {
-    fontSize: 11,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.4,
+    color: '#333333',
+    marginVertical: 4,
   },
 
   /* Photo Grid */
@@ -460,62 +323,54 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  /* Tip Card */
-  tipCardContent: {
+  /* Photo Guidelines Card */
+  guidelinesContent: {
+    padding: 14,
+    gap: 10,
+  },
+  guidelinesHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    gap: 12,
   },
-  tipIconBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
+  guidelinesTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: colors.accentYellow,
     borderWidth: 1.8,
     borderColor: colors.borderBlack,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 6,
   },
-  tipText: {
-    flex: 1,
-    fontSize: 12.5,
-    fontFamily: typography.bodyBold,
-    color: colors.textDark,
-    lineHeight: 17,
-  },
-
-  /* Rules Card */
-  rulesCardContent: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  rulesHeader: {
-    fontSize: 10.5,
+  guidelinesTagText: {
+    fontSize: 10,
     fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+  },
+  guidelinesMainText: {
+    fontSize: 12,
+    fontFamily: typography.bodySemiBold,
+    color: colors.textDark,
+    lineHeight: 17,
   },
   rulesItemsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 8,
+    paddingTop: 4,
+    borderTopWidth: 1.5,
+    borderTopColor: '#F3F4F6',
   },
   ruleItemText: {
-    fontSize: 9.5,
-    fontFamily: typography.bodyBold,
+    fontSize: 10,
+    fontFamily: typography.bodyExtraBold,
     color: '#4B5563',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
   ruleDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.primaryPink,
+    backgroundColor: colors.borderBlack,
   },
 });

@@ -10,16 +10,16 @@ interface OnboardingTopHeaderProps {
   user?: UserAccount;
   onBack?: () => void;
   onLogout?: () => void;
+  onPrevStep?: () => void;
 }
 
 export const OnboardingTopHeader: React.FC<OnboardingTopHeaderProps> = ({
-  onBack,
   onLogout,
 }) => {
   const [showExitModal, setShowExitModal] = useState(false);
 
   const handlePressLogo = () => {
-    if (onLogout || onBack) {
+    if (onLogout) {
       setShowExitModal(true);
     }
   };
@@ -28,18 +28,18 @@ export const OnboardingTopHeader: React.FC<OnboardingTopHeaderProps> = ({
     setShowExitModal(false);
     if (onLogout) {
       onLogout();
-    } else if (onBack) {
-      onBack();
     }
   };
 
   return (
     <View style={styles.headerContainer}>
-      {/* Left-Aligned Single Iconic Pink P!NG Logo Badge (Tappable to Exit/Log Out) */}
+      {/* 1. Iconic Pink P!NG Logo Badge - Universally Anchored */}
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={handlePressLogo}
-        disabled={!onLogout && !onBack}
+        disabled={!onLogout}
+        accessibilityRole="button"
+        accessibilityLabel="P!NG Logo"
       >
         <BrutalBox
           backgroundColor={colors.primaryPink}

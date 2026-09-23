@@ -8,10 +8,11 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { LAYOUT } from '../theme/responsive';
@@ -19,6 +20,7 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
+import { OnboardingHeadline } from '../components/OnboardingHeadline';
 import { UserAccount } from '../types/user';
 import { updateProfile } from '../services/profile';
 import { errorMessage } from '../services/errors';
@@ -29,6 +31,8 @@ interface OnboardingNameScreenProps {
   onNext: (updatedUser: UserAccount) => void;
 }
 
+const MAX_NAME_LENGTH = 30;
+
 export const OnboardingNameScreen: React.FC<OnboardingNameScreenProps> = ({
   user,
   onBack,
@@ -37,10 +41,12 @@ export const OnboardingNameScreen: React.FC<OnboardingNameScreenProps> = ({
   const [name, setName] = useState(user.name);
   const [isSaving, setIsSaving] = useState(false);
 
+  const trimmed = name.trim();
+  const isValid = trimmed.length >= 2;
+
   const handleNext = async () => {
-    const trimmed = name.trim();
     if (!trimmed) {
-      Alert.alert('Required', 'Please enter your name.');
+      Alert.alert('Required', 'Please enter your first name.');
       return;
     }
 
@@ -64,11 +70,11 @@ export const OnboardingNameScreen: React.FC<OnboardingNameScreenProps> = ({
       <StatusBar style="dark" />
       <DotGridBackground />
 
-      {/* 1. Universal Neo-Brutalist Onboarding Top Header */}
-      <OnboardingTopHeader onBack={onBack} user={user} />
+      {/* 1. Universal Top Navigation Header */}
+      <OnboardingTopHeader onLogout={onBack} user={user} />
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
@@ -77,93 +83,69 @@ export const OnboardingNameScreen: React.FC<OnboardingNameScreenProps> = ({
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.container}>
-          <View style={styles.contentSection}>
-            {/* 2. Step Badge & Dots Row */}
-            <View style={styles.stepBadgeRow}>
+            {/* 2. Unified Headline with 5px Black Underline */}
+            <OnboardingHeadline
+              step="01"
+              line1="WHAT&apos;S YOUR"
+              focalWord="FIRST NAME?"
+              subtitle="This is how you&apos;ll appear on P!NG."
+            />
+
+            {/* 4. Single Master Name Input Box */}
+            <View style={styles.inputCardWrapper}>
               <BrutalBox
-                backgroundColor={colors.accentYellow}
+                backgroundColor="#FFFFFF"
                 borderColor={colors.borderBlack}
-                borderWidth={2.2}
-                borderRadius={999}
-                shadowOffset={{ x: 2.2, y: 2.2 }}
-                contentStyle={styles.stepBadgeContent}
-              >
-                <Ionicons name="flash" size={13} color={colors.textDark} />
-                <Text style={styles.stepBadgeText}>STEP 01 / 08</Text>
-              </BrutalBox>
-
-              {/* 5 Dots: 2 filled, 3 unfilled */}
-              <View style={styles.dotsRow}>
-                <View style={[styles.dot, styles.dotFilled]} />
-                <View style={[styles.dot, styles.dotFilled]} />
-                <View style={styles.dot} />
-                <View style={styles.dot} />
-                <View style={styles.dot} />
-              </View>
-            </View>
-
-            {/* 3. Headline */}
-            <View style={styles.headlineWrapper}>
-              <Text style={styles.headlineLine1}>WHAT SHOULD</Text>
-              <Text style={styles.headlineLine2}>WE CALL YOU?</Text>
-              <Text style={styles.subtitleText}>
-                This is how you'll appear to other P!NG members.
-              </Text>
-            </View>
-
-            {/* 4. Name Input Card */}
-            <View style={styles.cardOuterWrapper}>
-              <BrutalBox
-                backgroundColor={colors.cardWhite}
-                borderColor={colors.borderBlack}
-                borderWidth={2.8}
-                borderRadius={22}
+                borderWidth={2.4}
+                borderRadius={16}
                 shadowOffset={{ x: 4, y: 4 }}
-                overflow="visible"
                 style={styles.fullWidth}
                 contentStyle={styles.inputCardContent}
               >
-                {/* Overlapping Floating Yellow Label */}
-                <View style={styles.floatingLabel}>
-                  <Text style={styles.floatingLabelText}>YOUR NAME</Text>
-                </View>
-
-                {/* Input Row with Avatar Placeholder & Character Counter */}
-                <View style={styles.nameInputBox}>
-                  <View style={styles.pinkAvatarPlaceholder} />
-                  <TextInput
-                    style={styles.nameTextInput}
-                    value={name}
-                    onChangeText={(val) => setName(val.slice(0, 20))}
-                    placeholder="Your Name"
-                    placeholderTextColor="#888"
-                    maxLength={20}
-                    autoCapitalize="words"
-                  />
-                  <View style={styles.charCountPill}>
-                    <Text style={styles.charCountText}>{name.length}/20</Text>
-                  </View>
-                </View>
-
-                {/* Privacy Guarantee Note */}
-                <View style={styles.privacyNoteRow}>
-                  <Feather name="shield" size={13} color="#059669" />
-                  <Text style={styles.privacyNoteText}>
-                    Real identity matters on P!NG. Use your authentic first name.
-                  </Text>
-                </View>
+                <TextInput
+                  style={styles.textInput}
+                  value={name}
+                  onChangeText={(val) => setName(val.slice(0, MAX_NAME_LENGTH))}
+                  placeholder="First name"
+                  placeholderTextColor="#999999"
+                  maxLength={MAX_NAME_LENGTH}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  autoFocus
+                />
+                {name.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setName('')}
+                    style={styles.clearButton}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear name input"
+                  >
+                    <Ionicons name="close-circle" size={20} color="#888888" />
+                  </TouchableOpacity>
+                )}
               </BrutalBox>
+
+              {/* 5. Minimalist Advisory & Counter */}
+              <View style={styles.helperRow}>
+                <Text style={styles.helperText}>
+                  You won&apos;t be able to change this later.
+                </Text>
+                <Text style={styles.charCountText}>
+                  {name.length}/{MAX_NAME_LENGTH}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
 
-        {/* 6. Pinned Bottom Navigation Dual Buttons */}
+        {/* 6. Pinned Bottom Navigation Button */}
         <View style={styles.bottomBarWrapper}>
           <OnboardingBottomBar
             onNext={handleNext}
-            onSkip={() => handleNext()}
+            showSkip={false}
             isSaving={isSaving}
+            disabled={!isValid}
           />
         </View>
       </KeyboardAvoidingView>
@@ -176,59 +158,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bgCream,
   },
-  topNavContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: colors.bgCream,
-    gap: 12,
-  },
-  topNavRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniLogoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  miniLogoText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-  },
-  stepIndicatorText: {
-    fontSize: 12.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.6,
-  },
-  avatarButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    width: '12.5%', // Step 1 of 8
-    height: '100%',
-    backgroundColor: colors.primaryPink,
-    borderRadius: 999,
+  keyboardView: {
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -240,8 +171,52 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: LAYOUT.shellMaxWidth,
     alignSelf: 'center',
-    alignItems: 'flex-start',
     gap: 20,
+  },
+  inputCardWrapper: {
+    width: '100%',
+    marginTop: 4,
+    gap: 10,
+  },
+  fullWidth: {
+    width: '100%',
+  },
+  inputCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  textInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: 19,
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+  },
+  clearButton: {
+    padding: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  helperText: {
+    fontSize: 12,
+    fontFamily: typography.bodyMedium,
+    color: '#71717A',
+    flex: 1,
+  },
+  charCountText: {
+    fontSize: 12,
+    fontFamily: typography.bodySemiBold,
+    color: '#71717A',
+    marginLeft: 8,
   },
   bottomBarWrapper: {
     width: '100%',
@@ -249,170 +224,5 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingHorizontal: 20,
     paddingBottom: Platform.OS === 'ios' ? 12 : 16,
-  },
-  contentSection: {
-    width: '100%',
-    alignItems: 'flex-start',
-    gap: 18,
-  },
-  fullWidth: {
-    width: '100%',
-  },
-  stepBadgeRow: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  stepBadgeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    gap: 6,
-  },
-  stepBadgeText: {
-    fontSize: 11,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.5,
-  },
-  dotsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: colors.borderBlack,
-    backgroundColor: 'transparent',
-  },
-  dotFilled: {
-    backgroundColor: colors.borderBlack,
-  },
-  headlineWrapper: {
-    width: '100%',
-    gap: 0,
-    marginTop: -8,
-    paddingTop: 2,
-    overflow: 'visible',
-  },
-  headlineLine1: {
-    fontSize: 34,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 38,
-    paddingTop: 1,
-  },
-  headlineLine2: {
-    fontSize: 34,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 38,
-    paddingTop: 1,
-  },
-  subtitleText: {
-    fontSize: 13,
-    fontFamily: typography.bodyMedium,
-    color: '#333',
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  cardOuterWrapper: {
-    width: '100%',
-    marginTop: 8,
-  },
-  inputCardContent: {
-    padding: 16,
-    paddingTop: 24,
-    position: 'relative',
-    overflow: 'visible',
-  },
-  floatingLabel: {
-    position: 'absolute',
-    top: -14,
-    left: 14,
-    zIndex: 99,
-    backgroundColor: colors.accentYellow,
-    borderWidth: 2,
-    borderColor: colors.borderBlack,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 3.5,
-  },
-  floatingLabelText: {
-    fontSize: 10.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.4,
-  },
-  nameInputBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 2.2,
-    borderColor: colors.borderBlack,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    height: 52,
-    paddingHorizontal: 12,
-    gap: 10,
-  },
-  pinkAvatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FED7E2',
-    borderWidth: 1.5,
-    borderColor: colors.borderBlack,
-  },
-  nameTextInput: {
-    flex: 1,
-    height: '100%',
-    fontSize: 16,
-    fontFamily: typography.bodyBold,
-    color: colors.textDark,
-  },
-  charCountPill: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: colors.borderBlack,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  charCountText: {
-    fontSize: 10.5,
-    fontFamily: typography.bodyBold,
-    color: '#555',
-  },
-  privacyNoteRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingTop: 4,
-  },
-  privacyNoteText: {
-    fontSize: 11.5,
-    fontFamily: typography.bodyMedium,
-    color: '#059669',
-    flex: 1,
-  },
-  noticeBannerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    gap: 10,
-  },
-  noticeBannerText: {
-    fontSize: 12.5,
-    fontFamily: typography.bodyBold,
-    color: colors.textDark,
-    flex: 1,
   },
 });

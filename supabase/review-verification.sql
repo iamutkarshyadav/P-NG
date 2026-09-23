@@ -1,9 +1,10 @@
 -- Reviewer runbook (run from the Supabase SQL editor as the postgres/service role).
 -- 1. See who is waiting:
---    select v.id, v.user_id, p.display_name, v.selfie_path, v.created_at
+--    select v.id, v.user_id, p.display_name, v.challenge, v.selfie_path, v.created_at
 --      from public.verifications v join public.profiles p on p.id = v.user_id
 --     where v.status = 'pending' order by v.created_at;
--- 2. View the selfie: Storage > selfies > <selfie_path> (the bucket is private).
+-- 2. View the selfie: Storage > selfies > <selfie_path> (the bucket is private). Approve only if the
+--    person is doing the pose in `challenge` (issued by the server) and matches their profile photos.
 -- 3. Decide. The 100% REAL badge follows automatically via the verifications_sync_flag trigger.
 --    update public.verifications set status = 'approved', reviewed_at = now() where id = '<verification id>';
 --    update public.verifications set status = 'rejected', reviewed_at = now() where id = '<verification id>';

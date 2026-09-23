@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, {
@@ -24,7 +25,8 @@ import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
 import { Image } from 'expo-image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchLikes, swipe, LikeProfile } from '../../services/discover';
+import { fetchLikes, swipe, fetchProfileDetails, LikeProfile, FeedProfile } from '../../services/discover';
+import { DiscoveryProfileDetailScreen } from './DiscoveryProfileDetailScreen';
 import { errorMessage } from '../../services/errors';
 import { useSignedUrls } from '../../hooks/useSignedUrls';
 import { paletteFor } from '../../lib/palette';
@@ -72,6 +74,50 @@ export const LikesScreen: React.FC<LikesScreenProps> = ({ onOpenChat }) => {
   const likes = useMemo(() => likesQuery.data ?? [], [likesQuery.data]);
   const urls = useSignedUrls(likes.map((l) => l.photoPaths[0]).filter((p): p is string => Boolean(p)));
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<LikeProfile | null>(null);
+
+  const selectedProfileQuery = useQuery({
+    queryKey: ['profile-details', selectedCandidate?.id],
+    queryFn: () => fetchProfileDetails(selectedCandidate!.id),
+    enabled: Boolean(selectedCandidate?.id),
+    staleTime: 5 * 60_000,
+  });
+
+  const selectedFeedProfile = useMemo<FeedProfile | null>(() => {
+    if (!selectedCandidate) return null;
+    if (selectedProfileQuery.data) return selectedProfileQuery.data;
+    const feed = queryClient.getQueryData<FeedProfile[]>(['feed']);
+    const cached = feed?.find((f) => f.id === selectedCandidate.id);
+    if (cached) return cached;
+    return {
+      id: selectedCandidate.id,
+      name: selectedCandidate.name,
+      age: selectedCandidate.age,
+      gender: null,
+      bio: null,
+      city: null,
+      distanceKm: selectedCandidate.distanceKm,
+      isVerified: selectedCandidate.isVerified,
+      lastActiveAt: null,
+      tags: [],
+      photoPaths: selectedCandidate.photoPaths,
+      languages: [],
+      prompts: [],
+    };
+  }, [selectedCandidate, selectedProfileQuery.data, queryClient]);
+
+  const candidatePhotoPaths = useMemo(() => {
+    if (selectedFeedProfile?.photoPaths && selectedFeedProfile.photoPaths.length > 0) {
+      return selectedFeedProfile.photoPaths;
+    }
+    return selectedCandidate?.photoPaths ?? [];
+  }, [selectedFeedProfile?.photoPaths, selectedCandidate?.photoPaths]);
+
+  const candidatePhotoUrlsMap = useSignedUrls(candidatePhotoPaths);
+  const candidatePhotoUrls = useMemo(() => {
+    if (!selectedCandidate) return [];
+    return candidatePhotoPaths.map((p) => candidatePhotoUrlsMap[p]).filter((u): u is string => Boolean(u));
+  }, [selectedCandidate, candidatePhotoPaths, candidatePhotoUrlsMap]);
 
   const handleAction = async (item: LikeProfile, action: 'like' | 'pass') => {
     if (busyId) return;
@@ -117,7 +163,8 @@ export const LikesScreen: React.FC<LikesScreenProps> = ({ onOpenChat }) => {
   }
 
   return (
-    <ScrollView
+    <>
+      <ScrollView
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
       refreshControl={
@@ -192,6 +239,7 @@ export const LikesScreen: React.FC<LikesScreenProps> = ({ onOpenChat }) => {
                   overflow="hidden"
                   style={styles.cardBox}
                   contentStyle={styles.cardContent}
+                  onPress={() => setSelectedCandidate(item)}
                 >
                   <View style={styles.cardPhotoWrapper}>
                     {photo ? (
@@ -266,7 +314,32 @@ export const LikesScreen: React.FC<LikesScreenProps> = ({ onOpenChat }) => {
         </View>
       </View>
     </ScrollView>
-  );
+
+    {/* Candidate Profile Detail Inspection Modal */}
+    <Modal
+      visible={!!selectedCandidate && !!selectedFeedProfile}
+      animationType="slide"
+      onRequestClose={() => setSelectedCandidate(null)}
+    >
+      {selectedCandidate && selectedFeedProfile && (
+        <DiscoveryProfileDetailScreen
+          candidate={selectedFeedProfile}
+          photoUrls={candidatePhotoUrls}
+          onClose={() => setSelectedCandidate(null)}
+          onAction={(action) => {
+            const item = selectedCandidate;
+            setSelectedCandidate(null);
+            if (action === 'pass') {
+              handleAction(item, 'pass');
+            } else {
+              handleAction(item, 'like');
+            }
+          }}
+        />
+      )}
+    </Modal>
+  </>
+);
 };
 
 const styles = StyleSheet.create({

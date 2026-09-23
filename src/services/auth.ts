@@ -2,7 +2,6 @@ import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../lib/supabase';
-import { env } from '../lib/env';
 import { errorMessage } from './errors';
 import { authRedirectUrl, completeAuthLink, setOAuthInFlight } from './authLinks';
 
@@ -10,10 +9,6 @@ import { authRedirectUrl, completeAuthLink, setOAuthInFlight } from './authLinks
 WebBrowser.maybeCompleteAuthSession();
 
 export type AuthResult = { ok: true; needsEmailConfirmation?: boolean } | { ok: false; error: string };
-
-/** Dev-only test accounts. Alex is seeded on the dev project; Sam is recreated fresh on demand. */
-export const DEV_ALEX = { email: 'alex@ping.app', password: 'password123' } as const;
-export const DEV_SAM = { email: 'sam@ping.app', password: 'password123' } as const;
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -25,6 +20,12 @@ function friendlyAuthError(message: string): string {
   }
   if (/email not confirmed/i.test(message)) return 'Confirm your email first. Check your inbox.';
   if (/rate limit|too many/i.test(message)) return 'Too many attempts. Wait a minute and try again.';
+  if (/token has expired|invalid token|otp has expired|invalid otp|token is invalid/i.test(message)) {
+    return 'Invalid or expired verification code. Please request a new code.';
+  }
+  if (/for security purposes, you can only request/i.test(message)) {
+    return 'Please wait a moment before requesting another code.';
+  }
   return errorMessage(message);
 }
 
@@ -32,6 +33,36 @@ export function validateCredentials(email: string, password: string): string | n
   if (!email.trim() || !password) return 'Please enter both your email and password.';
   if (!EMAIL_PATTERN.test(email.trim())) return 'That email does not look right.';
   return null;
+}
+
+export async function sendEmailOtp(email: string): Promise<AuthResult> {
+  const clean = email.trim();
+  if (!clean) return { ok: false, error: 'Please enter your email.' };
+  if (!EMAIL_PATTERN.test(clean)) return { ok: false, error: 'That email does not look right.' };
+  const { error } = await supabase.auth.signInWithOtp({
+    email: clean,
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo: authRedirectUrl(),
+    },
+  });
+  return error ? { ok: false, error: friendlyAuthError(error.message) } : { ok: true };
+}
+
+export async function verifyEmailOtp(email: string, token: string): Promise<AuthResult> {
+  const cleanEmail = email.trim();
+  const cleanToken = token.trim();
+  if (!cleanEmail) return { ok: false, error: 'Please enter your email.' };
+  if (!cleanToken) return { ok: false, error: 'Please enter the 6-digit code.' };
+  if (cleanToken.length < 6) return { ok: false, error: 'The code must be 6 digits.' };
+
+  const { error } = await supabase.auth.verifyOtp({
+    email: cleanEmail,
+    token: cleanToken,
+    type: 'email',
+  });
+  if (error) return { ok: false, error: friendlyAuthError(error.message) };
+  return { ok: true };
 }
 
 export async function signInWithEmail(email: string, password: string): Promise<AuthResult> {
@@ -55,11 +86,7 @@ export async function signUpWithEmail(email: string, password: string): Promise<
   if (error) return { ok: false, error: friendlyAuthError(error.message) };
   if (data.session) return { ok: true };
 
-  // No session means the project requires email confirmation. The dev Sam account is auto-confirmed.
-  if (env.enableDevLogins && email.trim().toLowerCase() === DEV_SAM.email) {
-    await supabase.functions.invoke('dev-reset-user', { body: { action: 'confirm', email: DEV_SAM.email } });
-    return signInWithEmail(email, password);
-  }
+  // No session means the project requires email confirmation.
   return { ok: true, needsEmailConfirmation: true };
 }
 
@@ -118,16 +145,4 @@ export async function changePassword(newPassword: string): Promise<AuthResult> {
   }
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   return error ? { ok: false, error: friendlyAuthError(error.message) } : { ok: true };
-}
-
-/** Dev only: deletes Sam (and his files) so signing up as him is always a brand-new account. */
-export async function resetDevSam(): Promise<void> {
-  if (!env.enableDevLogins) return;
-  await supabase.functions.invoke('dev-reset-user', { body: { action: 'reset', email: DEV_SAM.email } });
-}
-
-/** Dev only: moves the seeded candidates near the signed-in user and has a few like them. */
-export async function moveSeedsNearMe(): Promise<void> {
-  if (!env.enableDevLogins) return;
-  await supabase.rpc('dev_move_seeds_near_me');
 }

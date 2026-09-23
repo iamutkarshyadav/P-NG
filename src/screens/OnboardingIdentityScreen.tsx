@@ -18,6 +18,7 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
+import { OnboardingHeadline } from '../components/OnboardingHeadline';
 import { UserAccount } from '../types/user';
 import { updateProfile } from '../services/profile';
 import { errorMessage } from '../services/errors';
@@ -68,7 +69,7 @@ export const OnboardingIdentityScreen: React.FC<OnboardingIdentityScreenProps> =
       <DotGridBackground />
 
       {/* 1. Universal Neo-Brutalist Onboarding Top Header */}
-      <OnboardingTopHeader onBack={onBack} user={user} />
+      <OnboardingTopHeader onBack={onBack} onPrevStep={onBack} user={user} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -76,31 +77,13 @@ export const OnboardingIdentityScreen: React.FC<OnboardingIdentityScreenProps> =
       >
         <View style={styles.container}>
           <View style={styles.contentSection}>
-            {/* 2. Step Badge Pill */}
-            <View style={styles.stepBadgeWrapper}>
-              <BrutalBox
-                backgroundColor={colors.accentYellow}
-                borderColor={colors.borderBlack}
-                borderWidth={2.2}
-                borderRadius={999}
-                shadowOffset={{ x: 2.2, y: 2.2 }}
-                contentStyle={styles.stepBadgeContent}
-              >
-                <Ionicons name="flash" size={13} color={colors.textDark} />
-                <Text style={styles.stepBadgeText}>
-                  STEP 03 / 08 • YOU DO YOU
-                </Text>
-              </BrutalBox>
-            </View>
-
-            {/* 3. Headline */}
-            <View style={styles.headlineWrapper}>
-              <Text style={styles.headlineLine1}>HOW DO YOU</Text>
-              <Text style={styles.headlinePink}>IDENTIFY?</Text>
-              <Text style={styles.subtitleText}>
-                This helps us build your profile accurately.
-              </Text>
-            </View>
+            {/* 2. Unified Headline with 5px Black Underline */}
+            <OnboardingHeadline
+              step="03"
+              line1="HOW DO YOU"
+              focalWord="IDENTIFY?"
+              subtitle="This helps us build your profile accurately."
+            />
 
             {/* 4. Identity Selection Card */}
             <View style={styles.cardOuterWrapper}>
@@ -228,11 +211,12 @@ export const OnboardingIdentityScreen: React.FC<OnboardingIdentityScreenProps> =
         </View>
       </ScrollView>
 
-      {/* 7. Pinned Bottom Navigation Dual Buttons */}
+      {/* 7. Pinned Bottom Navigation Action Button */}
       <View style={styles.bottomBarWrapper}>
         <OnboardingBottomBar
           onNext={handleNext}
-          onSkip={() => handleNext()}
+          onBack={onBack}
+          showSkip={false}
           isSaving={isSaving}
         />
       </View>
@@ -244,60 +228,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.bgCream,
-  },
-  topNavContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: colors.bgCream,
-    gap: 12,
-  },
-  topNavRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniLogoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  miniLogoText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-  },
-  stepIndicatorText: {
-    fontSize: 12.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.6,
-  },
-  avatarButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    width: '37.5%', // Step 3 of 8
-    height: '100%',
-    backgroundColor: colors.primaryPink,
-    borderRadius: 999,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -326,53 +256,6 @@ const styles = StyleSheet.create({
   },
   fullWidth: {
     width: '100%',
-  },
-  stepBadgeWrapper: {
-    alignSelf: 'flex-start',
-    marginTop: 0,
-  },
-  stepBadgeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    gap: 6,
-  },
-  stepBadgeText: {
-    fontSize: 11,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.5,
-  },
-  headlineWrapper: {
-    width: '100%',
-    gap: 0,
-    marginTop: -8,
-    paddingTop: 2,
-    overflow: 'visible',
-  },
-  headlineLine1: {
-    fontSize: 34,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 38,
-    paddingTop: 1,
-  },
-  headlinePink: {
-    fontSize: 36,
-    color: colors.primaryPink,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 40,
-    paddingTop: 1,
-  },
-  subtitleText: {
-    fontSize: 13,
-    fontFamily: typography.bodyMedium,
-    color: '#333',
-    marginTop: 4,
-    lineHeight: 18,
   },
   cardOuterWrapper: {
     width: '100%',

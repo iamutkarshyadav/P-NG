@@ -29,7 +29,6 @@ import {
 import { colors } from './src/theme/colors';
 import { typography } from './src/theme/typography';
 import { LAYOUT } from './src/theme/responsive';
-import { env } from './src/lib/env';
 import { queryClient } from './src/lib/queryClient';
 import { initMonitoring, withMonitoring } from './src/lib/monitoring';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -41,14 +40,13 @@ import { PingLogoHeader } from './src/components/PingLogoHeader';
 import { GoogleLogo } from './src/components/GoogleLogo';
 import { SessionProvider, useSession } from './src/providers/SessionProvider';
 import {
-  DEV_ALEX,
-  DEV_SAM,
   requestPasswordReset,
-  resetDevSam,
+  sendEmailOtp,
   signInWithEmail,
   signInWithGoogle,
   signOut,
   signUpWithEmail,
+  verifyEmailOtp,
 } from './src/services/auth';
 import { AppHomeScreen } from './src/screens/AppHomeScreen';
 import { AppLockGate } from './src/components/AppLockGate';
@@ -93,26 +91,36 @@ function AppShell() {
   });
 
   const { status, user, error: sessionError, setUser, retry, passwordRecovery, endRecovery } = useSession();
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
-  const [email, setEmail] = useState<string>(env.enableDevLogins ? DEV_ALEX.email : '');
-  const [password, setPassword] = useState<string>(env.enableDevLogins ? DEV_ALEX.password : '');
+  const [activeTab, setActiveTab] = useState<'login' | 'signup' | 'otp'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otpStep, setOtpStep] = useState<'request' | 'verify'>('request');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpCooldown, setOtpCooldown] = useState(0);
   // The step shown while onboarding. null = resume from the step saved on the profile.
   const [stepOverride, setStepOverride] = useState<number | null>(null);
-  const [replaying, setReplaying] = useState(false);
+
+  // Countdown timer for OTP resend cooldown
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setOtpCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [otpCooldown]);
 
   // Reset local flow state whenever the session ends.
   useEffect(() => {
     if (status === 'signedOut') {
       setStepOverride(null);
-      setReplaying(false);
     }
   }, [status]);
 
   // Hardware back navigation during onboarding
   useEffect(() => {
-    if (!user || (user.hasCompletedOnboarding && !replaying)) return;
+    if (!user || user.hasCompletedOnboarding) return;
     const step = stepOverride ?? user.onboardingStep;
     if (step <= 1) return;
     const onBackPress = () => {
@@ -121,25 +129,7 @@ function AppShell() {
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
-  }, [user, stepOverride, replaying]);
-
-  /**
-   * Dev quick fill (only rendered when env.enableDevLogins):
-   * - ALEX: login route with the seeded account's credentials
-   * - SAM: signup route; Sam is deleted first so signing up is always a brand-new account
-   */
-  const handleQuickFill = async (demo: 'alex' | 'sam') => {
-    if (demo === 'alex') {
-      setActiveTab('login');
-      setEmail(DEV_ALEX.email);
-      setPassword(DEV_ALEX.password);
-      return;
-    }
-    await resetDevSam();
-    setActiveTab('signup');
-    setEmail(DEV_SAM.email);
-    setPassword(DEV_SAM.password);
-  };
+  }, [user, stepOverride]);
 
   const handleGoogleSignIn = async () => {
     setIsSubmitting(true);
@@ -169,11 +159,48 @@ function AppShell() {
     }
   };
 
-  const handleForgotPassword = async () => {
-    if (env.enableDevLogins) {
-      Alert.alert('Dev accounts', `Alex and Sam use the password: ${DEV_ALEX.password}`);
+  const handleSendOtp = async (isResend = false) => {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      Alert.alert('Email Required', 'Please enter your email to receive a login code.');
       return;
     }
+    setIsSubmitting(true);
+    try {
+      const result = await sendEmailOtp(cleanEmail);
+      if (!result.ok) {
+        Alert.alert('Login Code', result.error);
+      } else {
+        setOtpStep('verify');
+        setOtpCooldown(60);
+        Alert.alert(
+          isResend ? 'Code Resent!' : 'Check Your Email',
+          `We sent a 6-digit login code to ${cleanEmail}. Check your inbox or spam folder.`
+        );
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const cleanCode = otpCode.trim();
+    if (!cleanCode || cleanCode.length < 6) {
+      Alert.alert('Enter Code', 'Please enter the 6-digit code sent to your email.');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const result = await verifyEmailOtp(email, cleanCode);
+      if (!result.ok) {
+        Alert.alert('Verification Failed', result.error);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
     const result = await requestPasswordReset(email);
     Alert.alert(
       result.ok ? 'Check your email' : 'Reset password',
@@ -184,7 +211,6 @@ function AppShell() {
   const handleLogout = async () => {
     await unregisterPush();
     await signOut();
-    if (env.enableDevLogins) await handleQuickFill('alex');
   };
 
   if (!fontsLoaded || status === 'loading') {
@@ -220,7 +246,7 @@ function AppShell() {
   }
 
   if (user) {
-    if (!user.hasCompletedOnboarding || replaying) {
+    if (!user.hasCompletedOnboarding) {
       const step = stepOverride ?? user.onboardingStep;
       const advance = (to: number) => (updated: UserAccount) => {
         setUser(updated);
@@ -269,7 +295,6 @@ function AppShell() {
               onBack={() => setStepOverride(7)}
               onComplete={(updated) => {
                 setUser(updated);
-                setReplaying(false);
                 setStepOverride(null);
               }}
             />
@@ -279,27 +304,7 @@ function AppShell() {
 
     return (
       <AppLockGate>
-        <AppHomeScreen
-          user={user}
-          onLogout={handleLogout}
-          onSwitchToDemo={
-            env.enableDevLogins
-              ? async (demo) => {
-                  await unregisterPush();
-                  await signOut();
-                  await handleQuickFill(demo);
-                }
-              : undefined
-          }
-          onReplayOnboarding={
-            env.enableDevLogins
-              ? () => {
-                  setStepOverride(1);
-                  setReplaying(true);
-                }
-              : undefined
-          }
-        />
+        <AppHomeScreen user={user} onLogout={handleLogout} />
       </AppLockGate>
     );
   }
@@ -357,7 +362,7 @@ function AppShell() {
 
             {/* ── CENTER SECTION: Tab Switcher, Form Card, and Social Login ── */}
             <View style={styles.centerSection}>
-              {/* 4. Tab Switcher: Log In / Sign Up */}
+              {/* 4. Tab Switcher: Log In / Sign Up / Email Code */}
               <BrutalBox
                 backgroundColor={colors.cardWhite}
                 borderColor={colors.borderBlack}
@@ -402,6 +407,24 @@ function AppShell() {
                     Sign Up
                   </Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.tabButton,
+                    activeTab === 'otp' && styles.activeTabButton,
+                  ]}
+                  activeOpacity={0.85}
+                  onPress={() => setActiveTab('otp')}
+                >
+                  <Text
+                    style={[
+                      styles.tabButtonText,
+                      activeTab === 'otp' && styles.activeTabText,
+                    ]}
+                  >
+                    Email Code
+                  </Text>
+                </TouchableOpacity>
               </BrutalBox>
 
               {/* 5. Main Form Card */}
@@ -414,105 +437,259 @@ function AppShell() {
                 style={styles.formCard}
                 contentStyle={styles.formCardContent}
               >
-                {/* Email Input Field with Floating Label */}
-                <View style={styles.inputGroup}>
-                  <View style={styles.floatingLabelContainer}>
-                    <View style={styles.floatingLabel}>
-                      <Text style={styles.floatingLabelText}>EMAIL</Text>
-                    </View>
-                  </View>
-                  <View style={styles.inputBox}>
-                    <Feather
-                      name="mail"
-                      size={18}
-                      color="#444"
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.textInput}
-                      value={email}
-                      onChangeText={setEmail}
-                      placeholder={'you@example.com'}
-                      placeholderTextColor="#888"
-                      autoCapitalize="none"
-                      keyboardType="email-address"
-                    />
-                  </View>
-                </View>
+                {activeTab === 'otp' ? (
+                  otpStep === 'request' ? (
+                    <>
+                      {/* Email Input Field with Floating Label */}
+                      <View style={styles.inputGroup}>
+                        <View style={styles.floatingLabelContainer}>
+                          <View style={styles.floatingLabel}>
+                            <Text style={styles.floatingLabelText}>EMAIL</Text>
+                          </View>
+                        </View>
+                        <View style={styles.inputBox}>
+                          <Feather
+                            name="mail"
+                            size={18}
+                            color="#444"
+                            style={styles.inputIcon}
+                          />
+                          <TextInput
+                            style={styles.textInput}
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder="you@example.com"
+                            placeholderTextColor="#888"
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                          />
+                        </View>
+                      </View>
 
-                {/* Password Input Field with Floating Label */}
-                <View style={styles.inputGroup}>
-                  <View style={styles.floatingLabelContainer}>
-                    <View style={styles.floatingLabel}>
-                      <Text style={styles.floatingLabelText}>PASSWORD</Text>
-                    </View>
-                  </View>
-                  <View style={styles.inputBox}>
-                    <Feather
-                      name="lock"
-                      size={18}
-                      color="#444"
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.textInput}
-                      value={password}
-                      onChangeText={setPassword}
-                      placeholder="••••••••••"
-                      placeholderTextColor="#888"
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={styles.eyeIconButton}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Ionicons
-                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                        size={20}
-                        color="#444"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                      <Text style={styles.otpSubtext}>
+                        We&apos;ll send a 6-digit one-time code to your email. No password needed!
+                      </Text>
 
-                {/* Primary Action Button: "⚡ SEND P!NG" or "CREATE ACCOUNT" */}
-                <BrutalBox
-                  backgroundColor={colors.accentYellow}
-                  borderColor={colors.borderBlack}
-                  borderWidth={2.4}
-                  borderRadius={18}
-                  shadowOffset={{ x: 3, y: 3 }}
-                  onPress={handleSubmit}
-                  disabled={isSubmitting}
-                  contentStyle={styles.ctaButtonContent}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator size="small" color={colors.textDark} />
+                      {/* Primary Action Button: SEND CODE */}
+                      <BrutalBox
+                        backgroundColor={colors.accentYellow}
+                        borderColor={colors.borderBlack}
+                        borderWidth={2.4}
+                        borderRadius={18}
+                        shadowOffset={{ x: 3, y: 3 }}
+                        onPress={() => handleSendOtp(false)}
+                        disabled={isSubmitting}
+                        contentStyle={styles.ctaButtonContent}
+                      >
+                        {isSubmitting ? (
+                          <ActivityIndicator size="small" color={colors.textDark} />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="mail-outline"
+                              size={18}
+                              color={colors.textDark}
+                              style={styles.ctaIcon}
+                            />
+                            <Text style={styles.ctaButtonText}>SEND CODE</Text>
+                          </>
+                        )}
+                      </BrutalBox>
+                    </>
                   ) : (
                     <>
-                      <Ionicons
-                        name="flash"
-                        size={18}
-                        color={colors.textDark}
-                        style={styles.ctaIcon}
-                      />
-                      <Text style={styles.ctaButtonText}>
-                        {activeTab === 'login' ? 'SEND P!NG' : 'CREATE ACCOUNT'}
-                      </Text>
-                    </>
-                  )}
-                </BrutalBox>
+                      {/* Active Email Chip / Banner with Change option */}
+                      <View style={styles.otpEmailBanner}>
+                        <View style={styles.otpEmailLeft}>
+                          <Feather name="mail" size={15} color={colors.textDark} />
+                          <Text style={styles.otpEmailBannerText} numberOfLines={1}>
+                            {email}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setOtpStep('request');
+                            setOtpCode('');
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text style={styles.otpChangeEmailText}>Change</Text>
+                        </TouchableOpacity>
+                      </View>
 
-                {/* Forgot Password Link */}
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={handleForgotPassword}
-                  style={styles.forgotPasswordButton}
-                >
-                  <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-                </TouchableOpacity>
+                      {/* 6-Digit Code Input Field */}
+                      <View style={styles.inputGroup}>
+                        <View style={styles.floatingLabelContainer}>
+                          <View style={styles.floatingLabel}>
+                            <Text style={styles.floatingLabelText}>6-DIGIT CODE</Text>
+                          </View>
+                        </View>
+                        <View style={styles.inputBox}>
+                          <Feather
+                            name="key"
+                            size={18}
+                            color="#444"
+                            style={styles.inputIcon}
+                          />
+                          <TextInput
+                            style={[styles.textInput, styles.otpTextInput]}
+                            value={otpCode}
+                            onChangeText={(t) => setOtpCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
+                            placeholder="123456"
+                            placeholderTextColor="#AAA"
+                            keyboardType="number-pad"
+                            maxLength={6}
+                          />
+                        </View>
+                      </View>
+
+                      {/* Primary Action Button: VERIFY & ENTER */}
+                      <BrutalBox
+                        backgroundColor={colors.accentYellow}
+                        borderColor={colors.borderBlack}
+                        borderWidth={2.4}
+                        borderRadius={18}
+                        shadowOffset={{ x: 3, y: 3 }}
+                        onPress={handleVerifyOtp}
+                        disabled={isSubmitting || otpCode.trim().length < 6}
+                        contentStyle={styles.ctaButtonContent}
+                      >
+                        {isSubmitting ? (
+                          <ActivityIndicator size="small" color={colors.textDark} />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="flash"
+                              size={18}
+                              color={colors.textDark}
+                              style={styles.ctaIcon}
+                            />
+                            <Text style={styles.ctaButtonText}>VERIFY & ENTER</Text>
+                          </>
+                        )}
+                      </BrutalBox>
+
+                      {/* Resend Cooldown / Button */}
+                      <View style={styles.resendRow}>
+                        {otpCooldown > 0 ? (
+                          <Text style={styles.resendCooldownText}>
+                            Resend code in <Text style={styles.resendBoldText}>{otpCooldown}s</Text>
+                          </Text>
+                        ) : (
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => handleSendOtp(true)}
+                            disabled={isSubmitting}
+                          >
+                            <Text style={styles.resendLinkText}>Didn&apos;t get a code? Resend</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </>
+                  )
+                ) : (
+                  <>
+                    {/* Email Input Field with Floating Label */}
+                    <View style={styles.inputGroup}>
+                      <View style={styles.floatingLabelContainer}>
+                        <View style={styles.floatingLabel}>
+                          <Text style={styles.floatingLabelText}>EMAIL</Text>
+                        </View>
+                      </View>
+                      <View style={styles.inputBox}>
+                        <Feather
+                          name="mail"
+                          size={18}
+                          color="#444"
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          style={styles.textInput}
+                          value={email}
+                          onChangeText={setEmail}
+                          placeholder={'you@example.com'}
+                          placeholderTextColor="#888"
+                          autoCapitalize="none"
+                          keyboardType="email-address"
+                        />
+                      </View>
+                    </View>
+
+                    {/* Password Input Field with Floating Label */}
+                    <View style={styles.inputGroup}>
+                      <View style={styles.floatingLabelContainer}>
+                        <View style={styles.floatingLabel}>
+                          <Text style={styles.floatingLabelText}>PASSWORD</Text>
+                        </View>
+                      </View>
+                      <View style={styles.inputBox}>
+                        <Feather
+                          name="lock"
+                          size={18}
+                          color="#444"
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          style={styles.textInput}
+                          value={password}
+                          onChangeText={setPassword}
+                          placeholder="••••••••••"
+                          placeholderTextColor="#888"
+                          secureTextEntry={!showPassword}
+                          autoCapitalize="none"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setShowPassword(!showPassword)}
+                          style={styles.eyeIconButton}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons
+                            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                            size={20}
+                            color="#444"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Primary Action Button: "⚡ SEND P!NG" or "CREATE ACCOUNT" */}
+                    <BrutalBox
+                      backgroundColor={colors.accentYellow}
+                      borderColor={colors.borderBlack}
+                      borderWidth={2.4}
+                      borderRadius={18}
+                      shadowOffset={{ x: 3, y: 3 }}
+                      onPress={handleSubmit}
+                      disabled={isSubmitting}
+                      contentStyle={styles.ctaButtonContent}
+                    >
+                      {isSubmitting ? (
+                        <ActivityIndicator size="small" color={colors.textDark} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="flash"
+                            size={18}
+                            color={colors.textDark}
+                            style={styles.ctaIcon}
+                          />
+                          <Text style={styles.ctaButtonText}>
+                            {activeTab === 'login' ? 'SEND P!NG' : 'CREATE ACCOUNT'}
+                          </Text>
+                        </>
+                      )}
+                    </BrutalBox>
+
+                    {/* Forgot Password Link */}
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={handleForgotPassword}
+                      style={styles.forgotPasswordButton}
+                    >
+                      <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
 
                 {/* Neo-Brutalist "OR CONTINUE WITH" Divider */}
                 <View style={styles.dividerRow}>
@@ -538,7 +715,7 @@ function AppShell() {
                     <GoogleLogo size={20} />
                   </View>
                   <Text style={styles.googleSsoText}>
-                    {activeTab === 'login' ? 'CONTINUE WITH GOOGLE' : 'SIGN UP WITH GOOGLE'}
+                    {activeTab === 'signup' ? 'SIGN UP WITH GOOGLE' : 'CONTINUE WITH GOOGLE'}
                   </Text>
                 </BrutalBox>
               </BrutalBox>
@@ -568,48 +745,7 @@ function AppShell() {
                 <Text style={styles.valuePropText}> forever!</Text>
               </BrutalBox>
 
-              {/* 7. Dev-only quick test fill (env.enableDevLogins) */}
-              {env.enableDevLogins && (
-                <View style={styles.quickFillWrapper}>
-                  <View style={styles.quickFillDottedBox}>
-                    <Text style={styles.quickFillLabel}>QUICK TEST FILL:</Text>
-                  </View>
-
-                  <BrutalBox
-                    backgroundColor={colors.cardWhite}
-                    borderColor={colors.borderBlack}
-                    borderWidth={1.8}
-                    borderRadius={999}
-                    shadowOffset={{ x: 2, y: 2 }}
-                    onPress={() => handleQuickFill('alex')}
-                    contentStyle={[
-                      styles.quickFillPill,
-                      activeTab === 'login' && email.includes('alex') && styles.activeQuickPill,
-                    ]}
-                  >
-                    <Ionicons name="flash" size={13} color="#E0A100" />
-                    <Text style={styles.quickFillPillText}>ALEX</Text>
-                  </BrutalBox>
-
-                  <BrutalBox
-                    backgroundColor={colors.cardWhite}
-                    borderColor={colors.borderBlack}
-                    borderWidth={1.8}
-                    borderRadius={999}
-                    shadowOffset={{ x: 2, y: 2 }}
-                    onPress={() => handleQuickFill('sam')}
-                    contentStyle={[
-                      styles.quickFillPill,
-                      activeTab === 'signup' && email.includes('sam') && styles.activeQuickPill,
-                    ]}
-                  >
-                    <Ionicons name="heart" size={13} color={colors.primaryPink} />
-                    <Text style={styles.quickFillPillText}>SAM</Text>
-                  </BrutalBox>
-                </View>
-              )}
-
-              {/* 8. Trust Footnote */}
+              {/* 7. Trust Footnote */}
               <Text style={styles.trustFootnote}>
                 ★ 100% REAL VERIFIED PROFILES • NO BOTS • P!NG SAFELY ★
               </Text>
@@ -754,7 +890,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryPink,
   },
   tabButtonText: {
-    fontSize: 14,
+    fontSize: 12.5,
     fontFamily: typography.bodyBold,
     color: colors.textDark,
   },
@@ -900,6 +1036,72 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
+  /* OTP Elements */
+  otpSubtext: {
+    fontSize: 12.5,
+    fontFamily: typography.bodyMedium,
+    color: colors.textMuted,
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingHorizontal: 6,
+  },
+  otpEmailBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.lavender,
+    borderWidth: 2,
+    borderColor: colors.borderBlack,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  otpEmailLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    marginRight: 8,
+  },
+  otpEmailBannerText: {
+    fontSize: 13,
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+    flex: 1,
+  },
+  otpChangeEmailText: {
+    fontSize: 12,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.primaryPink,
+    textDecorationLine: 'underline',
+  },
+  otpTextInput: {
+    fontSize: 20,
+    fontFamily: typography.headline,
+    letterSpacing: 6,
+    textAlign: 'center',
+  },
+  resendRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -4,
+  },
+  resendCooldownText: {
+    fontSize: 12.5,
+    fontFamily: typography.bodyMedium,
+    color: colors.textMuted,
+  },
+  resendBoldText: {
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+  },
+  resendLinkText: {
+    fontSize: 12.5,
+    fontFamily: typography.bodyBold,
+    color: colors.textDark,
+    textDecorationLine: 'underline',
+  },
+
   /* Retention Banner */
   valuePropContainer: {
     width: '100%',
@@ -938,44 +1140,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10.5,
     fontFamily: typography.bodyExtraBold,
-  },
-
-  /* Bottom Quick Test Fill Bar */
-  quickFillWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 4,
-  },
-  quickFillDottedBox: {
-    borderWidth: 1.4,
-    borderStyle: 'dashed',
-    borderColor: '#666666',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  quickFillLabel: {
-    fontSize: 10,
-    fontFamily: typography.bodyExtraBold,
-    color: '#333333',
-    letterSpacing: 0.4,
-  },
-  quickFillPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    gap: 4,
-  },
-  activeQuickPill: {
-    backgroundColor: '#FFF9D6',
-  },
-  quickFillPillText: {
-    fontSize: 11,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
   },
 
   /* Trust Footnote */

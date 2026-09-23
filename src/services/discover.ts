@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { assertOk, errorMessage, unwrap } from './errors';
 import type { Gender } from '../types/user';
+import type { Database } from '../types/database';
+import { parsePrompts, ProfilePromptItem } from '../types/prompts';
 
 export interface FeedProfile {
   id: string;
@@ -14,6 +16,28 @@ export interface FeedProfile {
   lastActiveAt: string | null;
   tags: string[];
   photoPaths: string[];
+  datingIntention?: string | null;
+  heightCm?: number | null;
+  drinkingHabits?: string | null;
+  smokingHabits?: string | null;
+  workoutHabits?: string | null;
+  petPreference?: string | null;
+  familyPlans?: string | null;
+  zodiacSign?: string | null;
+  educationLevel?: string | null;
+  religion?: string | null;
+  politics?: string | null;
+  pronouns?: string | null;
+  hometown?: string | null;
+  languages: string[];
+  occupation?: string | null;
+  anthemTrack?: string | null;
+  anthemArtist?: string | null;
+  voiceNotePrompt?: string | null;
+  voiceNoteDuration?: string | null;
+  photo2Prompt?: string | null;
+  photo3Prompt?: string | null;
+  prompts: ProfilePromptItem[];
 }
 
 export interface LikeProfile {
@@ -33,9 +57,8 @@ export interface SwipeOutcome {
   matchId: string | null;
 }
 
-export async function fetchFeed(limit = 20): Promise<FeedProfile[]> {
-  const rows = unwrap(await supabase.rpc('discover_feed', { p_limit: limit }));
-  return rows.map((r) => ({
+function mapFeedProfileRow(r: Database['public']['Functions']['get_profile_details']['Returns'][number]): FeedProfile {
+  return {
     id: r.id,
     name: r.display_name,
     age: r.age,
@@ -47,7 +70,47 @@ export async function fetchFeed(limit = 20): Promise<FeedProfile[]> {
     lastActiveAt: r.last_active_at,
     tags: r.tags ?? [],
     photoPaths: r.photo_paths ?? [],
-  }));
+    datingIntention: r.dating_intention,
+    heightCm: r.height_cm,
+    drinkingHabits: r.drinking_habits,
+    smokingHabits: r.smoking_habits,
+    workoutHabits: r.workout_habits,
+    petPreference: r.pet_preference,
+    familyPlans: r.family_plans,
+    zodiacSign: r.zodiac_sign,
+    educationLevel: r.education_level,
+    religion: r.religion,
+    politics: r.politics,
+    pronouns: r.pronouns,
+    hometown: r.hometown,
+    languages: r.languages ?? [],
+    occupation: r.occupation,
+    anthemTrack: r.anthem_track,
+    anthemArtist: r.anthem_artist,
+    voiceNotePrompt: r.voice_note_prompt,
+    voiceNoteDuration: r.voice_note_duration,
+    photo2Prompt: r.photo_2_prompt,
+    photo3Prompt: r.photo_3_prompt,
+    prompts: parsePrompts(r.prompts),
+  };
+}
+
+/**
+ * The next batch of candidates, filtered by the caller's saved deal-breakers (the server reads them). An empty array
+ * means "no one new"; a failure throws so the UI can say so.
+ */
+export async function fetchFeed(limit = 20): Promise<FeedProfile[]> {
+  const rows = unwrap(await supabase.rpc('discover_feed', { p_limit: limit }));
+  return rows.map(mapFeedProfileRow);
+}
+
+/**
+ * Fetches the full profile details for a candidate, match partner, or liker.
+ */
+export async function fetchProfileDetails(targetId: string): Promise<FeedProfile | null> {
+  const { data, error } = await supabase.rpc('get_profile_details', { p_target: targetId });
+  if (error || !data || data.length === 0) return null;
+  return mapFeedProfileRow(data[0]);
 }
 
 export async function fetchLikes(): Promise<LikeProfile[]> {
@@ -66,11 +129,7 @@ export async function fetchLikes(): Promise<LikeProfile[]> {
 
 /** Fast scalar count for badge rendering without loading the entire profiles list. */
 export async function fetchLikesCount(): Promise<number> {
-  const { data, error } = await supabase.rpc('likes_count');
-  if (!error && typeof data === 'number') return data;
-  // Fallback to fetchLikes length if RPC not yet deployed
-  const likes = await fetchLikes();
-  return likes.length;
+  return unwrap(await supabase.rpc('likes_count'));
 }
 
 export async function swipe(targetId: string, action: SwipeAction): Promise<SwipeOutcome> {

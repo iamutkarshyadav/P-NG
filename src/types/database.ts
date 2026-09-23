@@ -75,7 +75,15 @@ export type Database = {
         Relationships: Rel[];
       };
       matches: {
-        Row: { created_at: string; id: string; user_a: string; user_b: string };
+        Row: {
+          created_at: string;
+          end_reason: 'unmatched' | 'blocked' | 'reset' | null;
+          ended_at: string | null;
+          ended_by: string | null;
+          id: string;
+          user_a: string;
+          user_b: string;
+        };
         Insert: { created_at?: string; id?: string; user_a: string; user_b: string };
         Update: { created_at?: string; id?: string; user_a?: string; user_b?: string };
         Relationships: Rel[];
@@ -148,12 +156,23 @@ export type Database = {
       };
       profiles: {
         Row: {
+          hometown: string | null;
+          languages: string[];
+          show_politics: boolean;
+          show_religion: boolean;
+          anthem_artist: string | null;
+          anthem_track: string | null;
           bio: string | null;
           birthday: string | null;
           city: string | null;
           created_at: string;
+          dating_intention: string | null;
           display_name: string;
+          drinking_habits: string | null;
+          education_level: string | null;
+          family_plans: string | null;
           gender: Gender | null;
+          height_cm: number | null;
           id: string;
           is_hidden: boolean;
           is_paused: boolean;
@@ -161,18 +180,41 @@ export type Database = {
           is_verified: boolean;
           last_active_at: string;
           location: unknown;
+          occupation: string | null;
           onboarding_completed_at: string | null;
           onboarding_step: number;
+          pet_preference: string | null;
+          photo_2_prompt: string | null;
+          photo_3_prompt: string | null;
+          politics: string | null;
+          pronouns: string | null;
+          religion: string | null;
           show_gender: boolean;
+          smoking_habits: string | null;
           updated_at: string;
+          voice_note_duration: string | null;
+          voice_note_prompt: string | null;
+          workout_habits: string | null;
+          zodiac_sign: string | null;
         };
         Insert: {
+          hometown?: string | null;
+          languages?: string[];
+          show_politics?: boolean;
+          show_religion?: boolean;
+          anthem_artist?: string | null;
+          anthem_track?: string | null;
           bio?: string | null;
           birthday?: string | null;
           city?: string | null;
           created_at?: string;
+          dating_intention?: string | null;
           display_name?: string;
+          drinking_habits?: string | null;
+          education_level?: string | null;
+          family_plans?: string | null;
           gender?: Gender | null;
+          height_cm?: number | null;
           id: string;
           is_hidden?: boolean;
           is_paused?: boolean;
@@ -180,18 +222,41 @@ export type Database = {
           is_verified?: boolean;
           last_active_at?: string;
           location?: unknown;
+          occupation?: string | null;
           onboarding_completed_at?: string | null;
           onboarding_step?: number;
+          pet_preference?: string | null;
+          photo_2_prompt?: string | null;
+          photo_3_prompt?: string | null;
+          politics?: string | null;
+          pronouns?: string | null;
+          religion?: string | null;
           show_gender?: boolean;
+          smoking_habits?: string | null;
           updated_at?: string;
+          voice_note_duration?: string | null;
+          voice_note_prompt?: string | null;
+          workout_habits?: string | null;
+          zodiac_sign?: string | null;
         };
         Update: {
+          hometown?: string | null;
+          languages?: string[];
+          show_politics?: boolean;
+          show_religion?: boolean;
+          anthem_artist?: string | null;
+          anthem_track?: string | null;
           bio?: string | null;
           birthday?: string | null;
           city?: string | null;
           created_at?: string;
+          dating_intention?: string | null;
           display_name?: string;
+          drinking_habits?: string | null;
+          education_level?: string | null;
+          family_plans?: string | null;
           gender?: Gender | null;
+          height_cm?: number | null;
           id?: string;
           is_hidden?: boolean;
           is_paused?: boolean;
@@ -199,10 +264,22 @@ export type Database = {
           is_verified?: boolean;
           last_active_at?: string;
           location?: unknown;
+          occupation?: string | null;
           onboarding_completed_at?: string | null;
           onboarding_step?: number;
+          pet_preference?: string | null;
+          photo_2_prompt?: string | null;
+          photo_3_prompt?: string | null;
+          politics?: string | null;
+          pronouns?: string | null;
+          religion?: string | null;
           show_gender?: boolean;
+          smoking_habits?: string | null;
           updated_at?: string;
+          voice_note_duration?: string | null;
+          voice_note_prompt?: string | null;
+          workout_habits?: string | null;
+          zodiac_sign?: string | null;
         };
         Relationships: [];
       };
@@ -218,34 +295,25 @@ export type Database = {
         Update: { id?: string; platform?: string; token?: string; updated_at?: string; user_id?: string };
         Relationships: Rel[];
       };
+      profile_prompts: {
+        Row: { answer: string; photo_path: string | null; prompt: string; slot: number; updated_at: string; user_id: string };
+        Insert: never;
+        Update: never;
+        Relationships: Rel[];
+      };
       reports: {
+        // Created only through the report_user() RPC; clients can read these columns of their own reports.
         Row: {
           created_at: string;
           details: string | null;
           id: string;
           reason: ReportReason;
-          reported_id: string;
+          reported_id: string | null;
           reporter_id: string;
           status: string;
         };
-        Insert: {
-          created_at?: string;
-          details?: string | null;
-          id?: string;
-          reason: ReportReason;
-          reported_id: string;
-          reporter_id: string;
-          status?: string;
-        };
-        Update: {
-          created_at?: string;
-          details?: string | null;
-          id?: string;
-          reason?: ReportReason;
-          reported_id?: string;
-          reporter_id?: string;
-          status?: string;
-        };
+        Insert: never;
+        Update: never;
         Relationships: Rel[];
       };
       swipes: {
@@ -286,6 +354,12 @@ export type Database = {
       };
       user_preferences: {
         Row: {
+          filter_drinking: string[];
+          filter_family: string[];
+          filter_intentions: string[];
+          filter_pets: string[];
+          filter_smoking: string[];
+          filter_workout: string[];
           intention: Intention;
           interested_in: Gender[];
           max_age: number;
@@ -296,6 +370,12 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          filter_drinking?: string[];
+          filter_family?: string[];
+          filter_intentions?: string[];
+          filter_pets?: string[];
+          filter_smoking?: string[];
+          filter_workout?: string[];
           intention?: Intention;
           interested_in?: Gender[];
           max_age?: number;
@@ -306,6 +386,12 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          filter_drinking?: string[];
+          filter_family?: string[];
+          filter_intentions?: string[];
+          filter_pets?: string[];
+          filter_smoking?: string[];
+          filter_workout?: string[];
           intention?: Intention;
           interested_in?: Gender[];
           max_age?: number;
@@ -361,6 +447,7 @@ export type Database = {
       };
       verifications: {
         Row: {
+          challenge: string | null;
           created_at: string;
           id: string;
           reviewed_at: string | null;
@@ -369,6 +456,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          challenge?: string | null;
           created_at?: string;
           id?: string;
           reviewed_at?: string | null;
@@ -377,6 +465,7 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          challenge?: string | null;
           created_at?: string;
           id?: string;
           reviewed_at?: string | null;
@@ -397,25 +486,90 @@ export type Database = {
       can_message: { Args: { m: string }; Returns: boolean };
       can_view_photos: { Args: { p_owner: string }; Returns: boolean };
       complete_onboarding: { Args: never; Returns: undefined };
-      // Dev-only helper (supabase/seed-dev.sql); absent on production projects.
-      dev_move_seeds_near_me: { Args: never; Returns: undefined };
-      dev_approve_my_verification: { Args: never; Returns: undefined };
       export_my_data: { Args: never; Returns: Json };
       reset_my_swipes: { Args: never; Returns: undefined };
       discover_feed: {
-        Args: { p_limit?: number };
+        Args: {
+          p_limit?: number;
+          p_intentions?: string[];
+          p_drinking?: string[];
+          p_smoking?: string[];
+          p_workout?: string[];
+          p_pets?: string[];
+          p_family?: string[];
+        };
         Returns: {
           age: number;
+          anthem_artist: string | null;
+          anthem_track: string | null;
           bio: string;
           city: string;
+          dating_intention: string | null;
           display_name: string;
           distance_km: number;
+          drinking_habits: string | null;
+          education_level: string | null;
+          family_plans: string | null;
           gender: Gender;
+          height_cm: number | null;
+          hometown: string | null;
+          languages: string[];
           id: string;
           is_verified: boolean;
           last_active_at: string;
+          occupation: string | null;
+          pet_preference: string | null;
+          photo_2_prompt: string | null;
+          photo_3_prompt: string | null;
           photo_paths: string[];
+          politics: string | null;
+          prompts: Json;
+          pronouns: string | null;
+          religion: string | null;
+          smoking_habits: string | null;
           tags: string[];
+          voice_note_duration: string | null;
+          voice_note_prompt: string | null;
+          workout_habits: string | null;
+          zodiac_sign: string | null;
+        }[];
+      };
+      get_profile_details: {
+        Args: { p_target: string };
+        Returns: {
+          age: number;
+          anthem_artist: string | null;
+          anthem_track: string | null;
+          bio: string | null;
+          city: string | null;
+          dating_intention: string | null;
+          display_name: string;
+          distance_km: number | null;
+          drinking_habits: string | null;
+          education_level: string | null;
+          family_plans: string | null;
+          gender: Gender | null;
+          height_cm: number | null;
+          hometown: string | null;
+          id: string;
+          is_verified: boolean;
+          languages: string[];
+          last_active_at: string | null;
+          occupation: string | null;
+          pet_preference: string | null;
+          photo_2_prompt: string | null;
+          photo_3_prompt: string | null;
+          photo_paths: string[];
+          politics: string | null;
+          prompts: Json;
+          pronouns: string | null;
+          religion: string | null;
+          smoking_habits: string | null;
+          tags: string[];
+          voice_note_duration: string | null;
+          voice_note_prompt: string | null;
+          workout_habits: string | null;
+          zodiac_sign: string | null;
         }[];
       };
       is_blocked_between: { Args: { a: string; b: string }; Returns: boolean };
@@ -453,6 +607,16 @@ export type Database = {
       record_swipe: {
         Args: { p_action: SwipeAction; p_target: string };
         Returns: { match_id: string; matched: boolean }[];
+      };
+      set_my_prompts: {
+        Args: { p_prompts: Array<{ slot: number; prompt: string; answer: string }> };
+        Returns: undefined;
+      };
+      verification_challenge: { Args: never; Returns: string };
+      submit_verification: { Args: { p_selfie_path: string }; Returns: undefined };
+      report_user: {
+        Args: { p_details?: string; p_match?: string; p_reason: ReportReason; p_reported: string };
+        Returns: undefined;
       };
       register_push_token: { Args: { p_platform: string; p_token: string }; Returns: undefined };
       set_location: { Args: { p_city?: string; p_lat: number; p_lng: number }; Returns: undefined };

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { LAYOUT } from '../theme/responsive';
@@ -20,6 +20,7 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
+import { OnboardingHeadline } from '../components/OnboardingHeadline';
 import { UserAccount } from '../types/user';
 import { updateProfile } from '../services/profile';
 import { errorMessage } from '../services/errors';
@@ -240,7 +241,7 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
       <DotGridBackground />
 
       {/* 1. Universal Neo-Brutalist Onboarding Top Header */}
-      <OnboardingTopHeader onBack={onBack} user={user} />
+      <OnboardingTopHeader onBack={onBack} onPrevStep={onBack} user={user} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -248,36 +249,16 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
       >
         <View style={styles.container}>
           <View style={styles.contentSection}>
-            {/* 2. Step Badge Pill */}
-            <View style={styles.stepBadgeWrapper}>
-              <BrutalBox
-                backgroundColor={colors.accentYellow}
-                borderColor={colors.borderBlack}
-                borderWidth={2.2}
-                borderRadius={999}
-                shadowOffset={{ x: 2.2, y: 2.2 }}
-                contentStyle={styles.stepBadgeContent}
-              >
-                <MaterialCommunityIcons name="cake-variant" size={15} color={colors.textDark} />
-                <Text style={styles.stepBadgeText}>
-                  STEP 02 / 08 • THE AGE CHECK
-                </Text>
-              </BrutalBox>
-            </View>
+            {/* 2. Unified Headline with 5px Black Underline */}
+            <OnboardingHeadline
+              step="02"
+              line1={`HEY ${displayFirstName},`}
+              line2="WHEN'S YOUR"
+              focalWord="BIRTHDAY?"
+              subtitle="Your age is public. Your birth date stays strictly private."
+            />
 
-            {/* 3. Modular Headline Text with 5px Black Underline */}
-            <View style={styles.headlineWrapper}>
-              <Text style={styles.headlineLine1}>HEY {displayFirstName},</Text>
-              <Text style={styles.headlineLine2}>WHEN'S YOUR</Text>
-              <View style={styles.birthdayUnderlineWrapper}>
-                <Text style={styles.headlineBirthday}>BIRTHDAY?</Text>
-              </View>
-              <Text style={styles.subtitleText}>
-                Your age is public. Your birth date stays strictly private.
-              </Text>
-            </View>
-
-            {/* 4. CLEAN DATE SELECTOR CARD */}
+            {/* 3. CLEAN DATE SELECTOR CARD */}
             <View style={styles.cardOuterWrapper}>
               <BrutalBox
                 backgroundColor={colors.cardWhite}
@@ -297,27 +278,19 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
                   </Text>
                 </View>
 
-                {/* Big Clean Date Banner (Single Line, Never Wraps) */}
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={handleOpenConfirmModal}
-                  style={styles.cleanDateBanner}
-                >
+                {/* Big Clean Date Banner (Single Line, Never Wraps - No Redundant Small Pill) */}
+                <View style={styles.cleanDateBanner}>
                   <View style={styles.calendarIconSquare}>
                     <Feather name="calendar" size={19} color={colors.primaryPink} />
                   </View>
 
                   <View style={styles.dateBannerCol}>
-                    <Text style={styles.dateBannerSub}>SELECTED BIRTHDATE (TAP TO CONFIRM)</Text>
+                    <Text style={styles.dateBannerSub}>SELECTED BIRTHDATE</Text>
                     <Text style={styles.dateBannerMain} numberOfLines={1}>
                       {MONTH_NAMES[selectedMonth - 1].toUpperCase()} {selectedDay}, {selectedYear}
                     </Text>
                   </View>
-
-                  <View style={styles.isoDateBadge}>
-                    <Text style={styles.isoDateText}>{formattedDateStr}</Text>
-                  </View>
-                </TouchableOpacity>
+                </View>
 
                 {/* 3-Column Segmented Controller (MONTH | DAY | YEAR) */}
                 <View style={styles.segmentedColumnsRow}>
@@ -414,7 +387,7 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
               </BrutalBox>
             </View>
 
-            {/* 5. ASTRO LOGIC BANNER (LIVE REACTIVE) */}
+            {/* 5. Clean Zodiac Info Banner (No AI Slop) */}
             <BrutalBox
               backgroundColor={colors.lavender}
               borderColor={colors.borderBlack}
@@ -424,14 +397,14 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
               style={styles.fullWidth}
               contentStyle={styles.astroContent}
             >
-              <View style={styles.astroIconCircle}>
-                <MaterialCommunityIcons name="party-popper" size={22} color={colors.textDark} />
+              <View style={styles.astroTagBadge}>
+                <Text style={styles.astroTagText}>ZODIAC</Text>
               </View>
 
               <View style={styles.astroTextCol}>
-                <Text style={styles.astroTitle}>ASTRO LOGIC ACTIVE</Text>
+                <Text style={styles.astroTitle}>YOUR SIGN: {zodiac.toUpperCase()}</Text>
                 <Text style={styles.astroSubtext}>
-                  {zodiac} season match bonuses unlocked automatically on your feed!
+                  Calculated from your date of birth and displayed on your public profile.
                 </Text>
               </View>
             </BrutalBox>
@@ -439,11 +412,13 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
         </View>
       </ScrollView>
 
-      {/* 6. Pinned Bottom Navigation Dual Buttons (SKIP + NEXT) */}
+      {/* 6. Pinned Bottom Navigation Action Button */}
       <View style={styles.bottomBarWrapper}>
         <OnboardingBottomBar
           onNext={handleOpenConfirmModal}
-          onSkip={handleOpenConfirmModal}
+          onBack={onBack}
+          nextText="CONFIRM BIRTHDATE ➔"
+          showSkip={false}
           isSaving={isSaving}
         />
       </View>
@@ -504,7 +479,10 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
                     {displayFirstName}, <Text style={styles.previewAgeNumber}>{age}</Text>
                   </Text>
                   <Text style={styles.previewSubtext}>
-                    Born {MONTH_NAMES[selectedMonth - 1]} {selectedDay}, {selectedYear} • {zodiac} ♉
+                    Born {MONTH_NAMES[selectedMonth - 1]} {selectedDay}, {selectedYear} • {zodiac}
+                  </Text>
+                  <Text style={styles.previewPrivacyNote}>
+                    Only your age ({age}) and sign ({zodiac}) are public. Your exact birth date stays strictly private.
                   </Text>
                 </View>
               </View>
@@ -613,70 +591,6 @@ const styles = StyleSheet.create({
   fullWidth: {
     width: '100%',
   },
-  stepBadgeWrapper: {
-    alignSelf: 'flex-start',
-    marginTop: 0,
-  },
-  stepBadgeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    gap: 6,
-  },
-  stepBadgeText: {
-    fontSize: 11,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.5,
-  },
-  headlineWrapper: {
-    width: '100%',
-    gap: 0,
-    marginTop: -8,
-    paddingTop: 2,
-    overflow: 'visible',
-  },
-  headlineLine1: {
-    fontSize: 34,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 38,
-    paddingTop: 1,
-  },
-  headlineLine2: {
-    fontSize: 34,
-    color: colors.textDark,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 38,
-    paddingTop: 1,
-  },
-  birthdayUnderlineWrapper: {
-    alignSelf: 'flex-start',
-    borderBottomWidth: 5,
-    borderBottomColor: '#000000',
-    paddingBottom: 2,
-    paddingTop: 1,
-    marginBottom: 4,
-  },
-  headlineBirthday: {
-    fontSize: 36,
-    color: colors.primaryPink,
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-    lineHeight: 40,
-    paddingTop: 1,
-  },
-  subtitleText: {
-    fontSize: 13,
-    fontFamily: typography.bodyMedium,
-    color: '#333',
-    marginTop: 4,
-    lineHeight: 18,
-  },
-
   /* ===== DATE CARD & SELECTOR STYLES ===== */
   cardOuterWrapper: {
     width: '100%',
@@ -747,19 +661,6 @@ const styles = StyleSheet.create({
     color: colors.textDark,
     letterSpacing: 0.4,
     marginTop: 1,
-  },
-  isoDateBadge: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.6,
-    borderColor: colors.borderBlack,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  isoDateText: {
-    fontSize: 11,
-    fontFamily: 'monospace',
-    color: colors.textDark,
   },
 
   /* 3-Column Segmented Selector */
@@ -845,21 +746,27 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
   },
-  astroIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  astroTagBadge: {
     backgroundColor: colors.accentYellow,
     borderWidth: 2,
     borderColor: colors.borderBlack,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  astroTagText: {
+    fontSize: 11,
+    fontFamily: typography.bodyExtraBold,
+    color: colors.textDark,
+    letterSpacing: 0.6,
   },
   astroTextCol: {
     flex: 1,
   },
   astroTitle: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontFamily: typography.bodyExtraBold,
     color: colors.textDark,
     letterSpacing: 0.5,
@@ -958,6 +865,13 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontFamily: typography.bodyMedium,
     color: '#444',
+  },
+  previewPrivacyNote: {
+    fontSize: 11,
+    fontFamily: typography.bodyMedium,
+    color: '#666666',
+    marginTop: 6,
+    lineHeight: 15,
   },
   modalActionsCol: {
     gap: 8,

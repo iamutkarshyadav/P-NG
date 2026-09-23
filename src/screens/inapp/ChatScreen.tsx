@@ -26,17 +26,19 @@ import { BrutalBox } from '../../components/BrutalBox';
 import { ProfileAvatar } from '../../components/ProfileAvatar';
 import { UserAccount } from '../../types/user';
 import { useSignedUrls } from '../../hooks/useSignedUrls';
-import { supabase } from '../../lib/supabase';
 import {
   ChatMessage,
   MESSAGE_PAGE_SIZE,
+  MatchSummary,
+  applyMessageToMatches,
   fetchMatches,
   fetchMessages,
   markRead,
   sendMessage,
   subscribeToMessages,
 } from '../../services/chat';
-import { unmatch } from '../../services/discover';
+import { unmatch, fetchProfileDetails, type FeedProfile } from '../../services/discover';
+import { DiscoveryProfileDetailScreen } from './DiscoveryProfileDetailScreen';
 import { REPORT_REASONS, ReportReason, blockUser, reportUser } from '../../services/safety';
 import { errorMessage } from '../../services/errors';
 import { clockTime } from '../../lib/format';
@@ -48,7 +50,21 @@ interface ChatScreenProps {
   onBack: () => void;
 }
 
-const ICEBREAKER = 'Two truths and a lie, go!';
+const ICEBREAKERS = [
+  'Two truths and a lie, go!',
+  'What is the best thing you ate this week?',
+  'Which song is on repeat for you right now?',
+  'Ideal Sunday: out exploring or fully at home?',
+  'What is a small thing that always makes your day better?',
+  'If we had one free weekend, where are we going?',
+];
+
+/** Three icebreakers that stay the same for a given match. */
+function icebreakersFor(matchId: string): string[] {
+  let hash = 0;
+  for (let i = 0; i < matchId.length; i += 1) hash = (hash * 31 + matchId.charCodeAt(i)) >>> 0;
+  return [0, 1, 2].map((k) => ICEBREAKERS[(hash + k * 2) % ICEBREAKERS.length]);
+}
 
 function dayLabel(iso: string): string {
   const d = new Date(iso);
@@ -67,6 +83,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
   const { matchId, partnerId, partnerName } = target;
   const queryClient = useQueryClient();
   const flatListRef = useRef<FlatList<ChatRow>>(null);
+  const icebreakers = useMemo(() => icebreakersFor(matchId), [matchId]);
 
   const [messages, setMessages] = useState<PendingMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,15 +95,57 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
   const [showWarning, setShowWarning] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [safetyModalOpen, setSafetyModalOpen] = useState(false);
+  const [partnerProfileOpen, setPartnerProfileOpen] = useState(false);
 
   // Partner details come from the matches list (age, photo, verified).
   const matchesQuery = useQuery({ queryKey: ['matches'], queryFn: fetchMatches });
   const summary = matchesQuery.data?.find((m) => m.matchId === matchId);
   const partnerUserId = partnerId ?? summary?.partnerId;
-  const urls = useSignedUrls(summary?.photoPath ? [summary.photoPath] : []);
 
-  const scrollToEnd = useCallback(() => {
-    requestAnimationFrame(() => flatListRef.current?.scrollToEnd({ animated: true }));
+  const partnerProfileQuery = useQuery({
+    queryKey: ['profile-details', partnerUserId],
+    queryFn: () => fetchProfileDetails(partnerUserId!),
+    enabled: Boolean(partnerUserId),
+    staleTime: 5 * 60_000,
+  });
+
+  const feedProfiles = queryClient.getQueryData<FeedProfile[]>(['feed']);
+  const partnerFeedProfile: FeedProfile = useMemo(() => {
+    if (partnerProfileQuery.data) return partnerProfileQuery.data;
+    const cached = feedProfiles?.find((p) => p.id === partnerUserId);
+    if (cached) return cached;
+    return {
+      id: partnerUserId ?? matchId,
+      name: summary?.name ?? partnerName,
+      age: summary?.age ?? 24,
+      gender: null,
+      bio: null,
+      city: null,
+      distanceKm: null,
+      isVerified: summary?.isVerified ?? false,
+      lastActiveAt: null,
+      tags: [],
+      photoPaths: summary?.photoPath ? [summary.photoPath] : [],
+      languages: [],
+      prompts: [],
+    };
+  }, [partnerProfileQuery.data, feedProfiles, partnerUserId, matchId, summary, partnerName]);
+
+  const partnerPhotoPaths = useMemo(() => {
+    if (partnerFeedProfile.photoPaths && partnerFeedProfile.photoPaths.length > 0) {
+      return partnerFeedProfile.photoPaths;
+    }
+    return summary?.photoPath ? [summary.photoPath] : [];
+  }, [partnerFeedProfile.photoPaths, summary?.photoPath]);
+
+  const urls = useSignedUrls(partnerPhotoPaths);
+  const partnerPhotoUrls = useMemo(() => {
+    return partnerPhotoPaths.map((p) => urls[p]).filter((u): u is string => Boolean(u));
+  }, [partnerPhotoPaths, urls]);
+
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }));
   }, []);
 
   // Hardware back button navigation
@@ -99,39 +158,28 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
     return () => sub.remove();
   }, [onBack]);
 
-  // Guard against match deletion (unmatch or block while chat is open)
-  useEffect(() => {
-    const channel = supabase
-      .channel(`match-guard:${matchId}`)
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` },
-        () => {
-          Alert.alert('Match Ended', 'This conversation is no longer active.', [
-            { text: 'OK', onPress: onBack },
-          ]);
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [matchId, onBack]);
+  // Callbacks used from the realtime channel go through a ref so the channel is not rebuilt on every parent render.
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
 
   const markConversationRead = useCallback(() => {
     markRead(matchId)
-      .then(() => queryClient.invalidateQueries({ queryKey: ['matches'] }))
+      .then(() =>
+        queryClient.setQueryData<MatchSummary[]>(['matches'], (old) =>
+          old?.map((m) => (m.matchId === matchId ? { ...m, unreadCount: 0 } : m))
+        )
+      )
       .catch(() => undefined); // a failed receipt must never block reading
   }, [matchId, queryClient]);
 
-  // Initial page.
+  // Initial page (fetchMessages returns newest first)
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     fetchMessages(matchId)
       .then((page) => {
         if (cancelled) return;
-        setMessages([...page].reverse());
+        setMessages(page);
         setHasMore(page.length === MESSAGE_PAGE_SIZE);
         setLoadError(null);
         markConversationRead();
@@ -145,9 +193,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
 
   // Live messages and read receipts.
   useEffect(() => {
-    return subscribeToMessages(
-      matchId,
-      (incoming) => {
+    return subscribeToMessages(matchId, {
+      onInsert: (incoming) => {
         setMessages((prev) => {
           if (prev.some((m) => m.id === incoming.id)) return prev;
           // Replace our optimistic copy of the same message if it is still pending.
@@ -159,39 +206,41 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
             next[pendingIndex] = incoming;
             return next;
           }
-          return [...prev, incoming];
+          return [incoming, ...prev];
         });
         if (incoming.senderId !== user.id) markConversationRead();
-        scrollToEnd();
       },
-      (updated) => setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m))),
+      onUpdate: (updated) => setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m))),
+      onEnded: () => {
+        Alert.alert('Match Ended', 'This conversation is no longer active.', [
+          { text: 'OK', onPress: () => onBackRef.current() },
+        ]);
+      },
       // Anything sent while the channel was connecting or reconnecting is fetched here.
-      () => {
+      onLive: () => {
         fetchMessages(matchId)
           .then((latest) =>
             setMessages((prev) => {
               const known = new Set(prev.map((m) => m.id));
               const missing = latest.filter((m) => !known.has(m.id));
               if (missing.length === 0) return prev;
-              return [...prev, ...missing].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+              return [...missing, ...prev].sort(
+                (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)
+              );
             })
           )
           .catch(() => undefined);
-      }
-    );
-  }, [matchId, user.id, markConversationRead, scrollToEnd]);
-
-  useEffect(() => {
-    if (!loading) scrollToEnd();
-  }, [loading, scrollToEnd]);
+      },
+    });
+  }, [matchId, user.id, markConversationRead]);
 
   const loadEarlier = async () => {
-    const oldest = messages.find((m) => !m.pending);
-    if (!oldest || loadingMore) return;
+    const oldest = messages.filter((m) => !m.pending).slice(-1)[0];
+    if (!oldest || loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const page = await fetchMessages(matchId, oldest.createdAt);
-      setMessages((prev) => [...[...page].reverse(), ...prev]);
+      const page = await fetchMessages(matchId, { createdAt: oldest.createdAt, id: oldest.id });
+      setMessages((prev) => [...prev, ...page]);
       setHasMore(page.length === MESSAGE_PAGE_SIZE);
     } catch (e) {
       Alert.alert('Could not load earlier messages', errorMessage(e));
@@ -213,23 +262,24 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
       readAt: null,
       pending: true,
     };
-    setMessages((prev) => [...prev, optimistic]);
+    setMessages((prev) => [optimistic, ...prev]);
     if (textToSend === undefined) setInputText('');
     setSending(true);
-    scrollToEnd();
+    scrollToBottom();
     try {
       const saved = await sendMessage(matchId, user.id, text);
       setMessages((prev) => {
         // Realtime may already have swapped in the saved row.
         const withoutTemp = prev.filter((m) => m.id !== tempId);
-        return withoutTemp.some((m) => m.id === saved.id) ? withoutTemp : [...withoutTemp, saved];
+        return withoutTemp.some((m) => m.id === saved.id) ? withoutTemp : [saved, ...withoutTemp];
       });
-      queryClient.invalidateQueries({ queryKey: ['matches'] });
+      // The realtime inbox subscription normally updates the list; this covers a missed event.
+      queryClient.setQueryData<MatchSummary[]>(['matches'], (old) => (old ? applyMessageToMatches(old, saved, user.id) ?? old : old));
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       if (textToSend === undefined) setInputText(text);
       const msg = errorMessage(e);
-      if (/participant|foreign key|can_message|not found/i.test(msg)) {
+      if (/participant|foreign key|can_message|not found|row-level security/i.test(msg)) {
         Alert.alert('Conversation Ended', 'You can no longer message this match.', [
           { text: 'OK', onPress: onBack },
         ]);
@@ -287,24 +337,25 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
     if (!partnerUserId) return;
     setReportOpen(false);
     try {
-      await reportUser(user.id, partnerUserId, reason);
+      await reportUser(partnerUserId, reason, undefined, matchId);
       Alert.alert('Report sent', 'Thanks for keeping P!NG real. Our team will take a look. You can also block this person.');
     } catch (e) {
       Alert.alert('Could not send report', errorMessage(e));
     }
   };
 
-  // Group messages under a day pill.
+  // Group messages under a day pill (inverted list order: index 0 is newest)
   const rows = useMemo(() => {
     const out: Array<{ kind: 'day'; key: string; label: string } | { kind: 'msg'; key: string; msg: PendingMessage }> = [];
-    let lastDay = '';
-    for (const msg of messages) {
-      const label = dayLabel(msg.createdAt);
-      if (label !== lastDay) {
-        out.push({ kind: 'day', key: `day-${msg.id}`, label });
-        lastDay = label;
-      }
+    for (let i = 0; i < messages.length; i += 1) {
+      const msg = messages[i];
       out.push({ kind: 'msg', key: msg.id, msg });
+      const currentDay = dayLabel(msg.createdAt);
+      const nextOlder = messages[i + 1];
+      const nextDay = nextOlder ? dayLabel(nextOlder.createdAt) : null;
+      if (currentDay !== nextDay) {
+        out.push({ kind: 'day', key: `day-${msg.id}`, label: currentDay });
+      }
     }
     return out;
   }, [messages]);
@@ -413,8 +464,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
         <FlatList
           ref={flatListRef}
           data={rows}
+          inverted={true}
           renderItem={renderRow}
           keyExtractor={(item) => item.key}
+          onEndReached={loadEarlier}
+          onEndReachedThreshold={0.2}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -422,8 +476,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
           initialNumToRender={20}
           maxToRenderPerBatch={15}
           windowSize={7}
-          ListHeaderComponent={
-            <View>
+          ListHeaderComponent={<View style={{ height: 12 }} />}
+          ListFooterComponent={
+            <View style={{ paddingTop: 10, paddingBottom: 16 }}>
               <BrutalBox
                 backgroundColor="#FFFFFF"
                 borderColor={colors.borderBlack}
@@ -433,7 +488,13 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
                 contentStyle={styles.contactCardContent}
               >
                 <View style={styles.contactCardRow}>
-                  <View style={styles.contactAvatarWrap}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setPartnerProfileOpen(true)}
+                    style={styles.contactAvatarWrap}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${partnerName}'s profile`}
+                  >
                     <View style={styles.contactAvatarBorder}>
                       <ProfileAvatar
                         uri={summary?.photoPath ? urls[summary.photoPath] : null}
@@ -442,27 +503,36 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
                         accessibilityLabel={`Photo of ${partnerName}`}
                       />
                     </View>
-                  </View>
+                  </TouchableOpacity>
 
-                  <View style={styles.contactInfoCol}>
-                    <Text style={styles.contactName}>
-                      {partnerName.toUpperCase()}
-                      {summary?.age ? `, ${summary.age}` : ''}
-                    </Text>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setPartnerProfileOpen(true)}
+                    style={styles.contactInfoCol}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${partnerName}'s profile`}
+                  >
+                    <View style={styles.contactNameRow}>
+                      <Text style={styles.contactName}>
+                        {partnerName.toUpperCase()}
+                        {summary?.age ? `, ${summary.age}` : ''}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={15} color="#9CA3AF" />
+                    </View>
                     {verified && (
                       <View style={styles.activePill}>
                         <Ionicons name="checkmark-done" size={12} color={colors.textDark} />
                         <Text style={styles.activePillText}>100% REAL</Text>
                       </View>
                     )}
-                  </View>
+                  </TouchableOpacity>
 
                   <View style={styles.contactActionsRow}>
                     <TouchableOpacity
                       activeOpacity={0.8}
-                      onPress={() => setMenuOpen(true)}
+                      onPress={() => setSafetyModalOpen(true)}
                       accessibilityRole="button"
-                      accessibilityLabel="Safety options"
+                      accessibilityLabel="Safety guidelines and support"
                     >
                       <BrutalBox
                         backgroundColor="#FFFFFF"
@@ -513,34 +583,35 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
                 <Text style={styles.chatNotice}>Could not load messages: {loadError}</Text>
               )}
 
-              {hasMore && !loading && (
-                <TouchableOpacity onPress={loadEarlier} disabled={loadingMore} style={styles.loadMore}>
-                  <Text style={styles.loadMoreText}>{loadingMore ? 'LOADING...' : 'LOAD EARLIER MESSAGES'}</Text>
-                </TouchableOpacity>
+              {loadingMore && (
+                <View style={styles.loadMore}>
+                  <ActivityIndicator size="small" color={colors.primaryPink} />
+                  <Text style={styles.loadMoreText}>LOADING EARLIER MESSAGES...</Text>
+                </View>
               )}
 
               {!loading && !loadError && messages.length === 0 && (
-                <Text style={styles.chatNotice}>You matched! Say something to {partnerName}.</Text>
+                <>
+                  <Text style={styles.chatNotice}>You matched! Say something to {partnerName}.</Text>
+                  {icebreakers.map((line) => (
+                    <TouchableOpacity key={line} activeOpacity={0.85} onPress={() => handleSend(line)}>
+                      <BrutalBox
+                        backgroundColor={colors.accentYellow}
+                        borderColor={colors.borderBlack}
+                        borderWidth={2.2}
+                        borderRadius={16}
+                        shadowOffset={{ x: 3, y: 3 }}
+                        style={styles.promptContainer}
+                        contentStyle={styles.promptContent}
+                      >
+                        <Ionicons name="flash" size={16} color={colors.primaryPink} />
+                        <Text style={styles.promptText}>{line.toUpperCase()}</Text>
+                      </BrutalBox>
+                    </TouchableOpacity>
+                  ))}
+                </>
               )}
             </View>
-          }
-          ListFooterComponent={
-            !loading && messages.length === 0 ? (
-              <TouchableOpacity activeOpacity={0.85} onPress={() => handleSend(ICEBREAKER)}>
-                <BrutalBox
-                  backgroundColor={colors.accentYellow}
-                  borderColor={colors.borderBlack}
-                  borderWidth={2.2}
-                  borderRadius={16}
-                  shadowOffset={{ x: 3, y: 3 }}
-                  style={styles.promptContainer}
-                  contentStyle={styles.promptContent}
-                >
-                  <Ionicons name="flash" size={16} color={colors.primaryPink} />
-                  <Text style={styles.promptText}>ICEBREAKER: {ICEBREAKER.toUpperCase()}</Text>
-                </BrutalBox>
-              </TouchableOpacity>
-            ) : null
           }
         />
 
@@ -643,6 +714,60 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
             ))}
           </BrutalBox>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Safety Advice Modal */}
+      <Modal transparent visible={safetyModalOpen} animationType="fade" onRequestClose={() => setSafetyModalOpen(false)}>
+        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={() => setSafetyModalOpen(false)}>
+          <BrutalBox
+            backgroundColor="#FFFFFF"
+            borderColor={colors.borderBlack}
+            borderWidth={2.6}
+            borderRadius={22}
+            shadowOffset={{ x: 4, y: 4 }}
+            style={styles.sheetCard}
+            contentStyle={styles.sheetContent}
+          >
+            <View style={styles.safetyHeaderRow}>
+              <Ionicons name="shield-checkmark" size={24} color={colors.accentYellow} />
+              <Text style={styles.sheetTitle}>P!NG SAFETY ADVICE</Text>
+            </View>
+            <Text style={styles.safetyBodyText}>
+              • Keep chats inside P!NG. Never send money, cryptocurrency, or gift cards.{'\n'}
+              • Protect personal data: avoid sharing your home address or financial info.{'\n'}
+              • When meeting IRL, pick a public space and let a close friend know.
+            </Text>
+            <TouchableOpacity
+              style={styles.sheetRow}
+              onPress={() => {
+                setSafetyModalOpen(false);
+                setReportOpen(true);
+              }}
+              accessibilityRole="button"
+            >
+              <Feather name="flag" size={18} color={colors.errorRed} />
+              <Text style={[styles.sheetRowText, { color: colors.errorRed }]}>Report Suspicious Behavior</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.sheetRow} onPress={() => setSafetyModalOpen(false)} accessibilityRole="button">
+              <Feather name="check" size={18} color={colors.textDark} />
+              <Text style={styles.sheetRowText}>Got It, Stay Safe</Text>
+            </TouchableOpacity>
+          </BrutalBox>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Partner Profile Inspection Modal */}
+      <Modal
+        visible={partnerProfileOpen}
+        animationType="slide"
+        onRequestClose={() => setPartnerProfileOpen(false)}
+      >
+        <DiscoveryProfileDetailScreen
+          candidate={partnerFeedProfile}
+          photoUrls={partnerPhotoUrls}
+          onClose={() => setPartnerProfileOpen(false)}
+          showActions={false}
+        />
       </Modal>
     </SafeAreaView>
   );
@@ -817,6 +942,24 @@ const styles = StyleSheet.create({
     fontFamily: typography.headline,
     color: colors.textDark,
     letterSpacing: 0.5,
+  },
+  contactNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  safetyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  safetyBodyText: {
+    fontSize: 13,
+    fontFamily: typography.bodyMedium,
+    color: colors.textDark,
+    lineHeight: 19,
+    marginBottom: 16,
   },
   activePill: {
     flexDirection: 'row',

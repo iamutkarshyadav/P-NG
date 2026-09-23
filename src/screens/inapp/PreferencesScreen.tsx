@@ -19,6 +19,8 @@ import { DotGridBackground } from '../../components/DotGridBackground';
 import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
 import { NeoSlider } from '../../components/NeoSlider';
+import { DealbreakerFilters } from '../../components/DealbreakerFilters';
+import { DealbreakerFilters as DealbreakerState, EMPTY_DEALBREAKERS } from '../../types/lifestyle';
 import { fetchPreferences, savePreferences } from '../../services/profile';
 import { errorMessage } from '../../services/errors';
 import type { Enums } from '../../types/database';
@@ -73,6 +75,7 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ user, onBa
   const [maxAge, setMaxAge] = useState(33);
   const [maxDistance, setMaxDistance] = useState(25);
   const [strictDistance, setStrictDistance] = useState(true);
+  const [dealbreakers, setDealbreakers] = useState<DealbreakerState>(EMPTY_DEALBREAKERS);
 
   useEffect(() => {
     if (!user) return;
@@ -86,6 +89,14 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ user, onBa
         setMaxAge(Math.min(AGE_MAX, prefs.max_age));
         setMaxDistance(Math.min(DISTANCE_MAX, Math.max(DISTANCE_MIN, prefs.max_distance_km)));
         setStrictDistance(prefs.strict_distance);
+        setDealbreakers({
+          intentions: prefs.filter_intentions,
+          drinking: prefs.filter_drinking,
+          smoking: prefs.filter_smoking,
+          workout: prefs.filter_workout,
+          pets: prefs.filter_pets,
+          family: prefs.filter_family,
+        });
       })
       .catch((e) => !cancelled && setLoadError(errorMessage(e)))
       .finally(() => !cancelled && setLoading(false));
@@ -123,6 +134,12 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ user, onBa
         max_age: maxAge >= AGE_MAX ? 99 : maxAge,
         max_distance_km: maxDistance,
         strict_distance: strictDistance,
+        filter_intentions: dealbreakers.intentions,
+        filter_drinking: dealbreakers.drinking,
+        filter_smoking: dealbreakers.smoking,
+        filter_workout: dealbreakers.workout,
+        filter_pets: dealbreakers.pets,
+        filter_family: dealbreakers.family,
       });
       await queryClient.invalidateQueries({ queryKey: ['feed'] });
       onApplyFilters?.({
@@ -351,6 +368,11 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ user, onBa
                 </TouchableOpacity>
               </View>
             </BrutalBox>
+          </View>
+
+          {/* CARD 3: DEAL-BREAKERS */}
+          <View style={styles.cardWrapper}>
+            <DealbreakerFilters value={dealbreakers} onChange={setDealbreakers} />
           </View>
 
           {/* 5. APPLY FILTERS CTA */}

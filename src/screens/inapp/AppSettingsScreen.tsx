@@ -25,7 +25,6 @@ import { BrutalBox } from '../../components/BrutalBox';
 import { UserAccount } from '../../types/user';
 import { useSettings } from '../../hooks/useSettings';
 import { SettingsRow } from '../../services/profile';
-import { exportMyData } from '../../services/account';
 import { registerForPush } from '../../services/push';
 import { errorMessage } from '../../services/errors';
 import { FEEDBACK_CATEGORIES, FeedbackCategory, submitFeedback } from '../../services/feedback';
@@ -87,14 +86,6 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ user, onBa
         },
       },
     ]);
-
-  const handleDownloadData = async () => {
-    try {
-      await exportMyData();
-    } catch (e) {
-      Alert.alert('Could not export your data', errorMessage(e));
-    }
-  };
 
   const openLink = (title: string, url: string) =>
     Linking.openURL(url).catch(() => Alert.alert(title, `Could not open ${url}`));
@@ -261,21 +252,6 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ user, onBa
                   <Text style={styles.clearCacheBtnText}>CLEAR</Text>
                 </TouchableOpacity>
               </View>
-
-              <View style={styles.divider} />
-
-              <TouchableOpacity activeOpacity={0.8} onPress={handleDownloadData} style={styles.storageRow} accessibilityRole="button">
-                <View style={[styles.storageIconBox, { backgroundColor: '#E0E7FF' }]}>
-                  <Feather name="download" size={18} color="#4338CA" />
-                </View>
-                <View style={styles.storageTextCol}>
-                  <Text style={styles.storageTitle}>Download My P!NG Data</Text>
-                  <Text style={styles.storageMeta}>JSON copy of your profile, swipes and chats</Text>
-                </View>
-                <View style={styles.circleArrowBtn}>
-                  <Feather name="arrow-right" size={18} color={colors.textDark} />
-                </View>
-              </TouchableOpacity>
             </BrutalBox>
           </View>
 

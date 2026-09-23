@@ -22,12 +22,11 @@ import { UserAccount } from '../../types/user';
 import { useSession } from '../../providers/SessionProvider';
 import { updateProfile } from '../../services/profile';
 import { errorMessage } from '../../services/errors';
+import { SelfieVerificationScreen } from './SelfieVerificationScreen';
 import {
   countMyReports,
-  devApproveVerification,
   fetchBlockedUsers,
   fetchVerificationState,
-  submitVerificationSelfie,
   unblockUser,
 } from '../../services/safety';
 
@@ -41,6 +40,7 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({ user, on
   const { setUser, refreshUser } = useSession();
   const queryClient = useQueryClient();
   const [blockListOpen, setBlockListOpen] = useState(false);
+  const [selfieOpen, setSelfieOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
   const verification = useQuery({
@@ -62,24 +62,15 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({ user, on
       Alert.alert('Waiting for review', 'We will update your badge as soon as our team has checked your selfie.');
       return;
     }
-    setBusy('verify');
-    try {
-      const outcome = await submitVerificationSelfie(user.id);
-      if (outcome === 'denied') {
-        Alert.alert('Camera needed', 'Allow camera access in your device settings to take a verification selfie.');
-      } else if (outcome === 'submitted') {
-        await queryClient.invalidateQueries({ queryKey: ['verification'] });
-        Alert.alert('Selfie submitted', 'Our team will review it and add the 100% REAL badge to your profile.');
-        // Dev builds can approve themselves so the badge can be seen without a reviewer.
-        await devApproveVerification();
-        await refreshUser();
-        await queryClient.invalidateQueries({ queryKey: ['verification'] });
-      }
-    } catch (e) {
-      Alert.alert('Could not submit selfie', errorMessage(e));
-    } finally {
-      setBusy(null);
-    }
+    setSelfieOpen(true);
+  };
+
+  const handleSelfieSubmitted = async () => {
+    setSelfieOpen(false);
+    await queryClient.invalidateQueries({ queryKey: ['verification'] });
+    Alert.alert('Selfie submitted', 'Our team will review it and add the 100% REAL badge to your profile.');
+    await refreshUser();
+    await queryClient.invalidateQueries({ queryKey: ['verification'] });
   };
 
   const handleStealth = async () => {
@@ -411,6 +402,14 @@ export const SafetyCenterScreen: React.FC<SafetyCenterScreenProps> = ({ user, on
           </BrutalBox>
         </View>
       </ScrollView>
+
+      <Modal visible={selfieOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setSelfieOpen(false)}>
+        <SelfieVerificationScreen
+          userId={user.id}
+          onClose={() => setSelfieOpen(false)}
+          onSubmitted={handleSelfieSubmitted}
+        />
+      </Modal>
 
       <Modal transparent visible={blockListOpen} animationType="fade" onRequestClose={() => setBlockListOpen(false)}>
         <TouchableOpacity style={styles.blockOverlay} activeOpacity={1} onPress={() => setBlockListOpen(false)}>

@@ -39,3 +39,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# local test data & scripts
+test-users.json
+supabase/.temp/
+supabase/full-db-reset-and-seed.sql
+supabase/prod-cleanup.sql
+supabase/review-reports.sql
+supabase/review-verification.sql

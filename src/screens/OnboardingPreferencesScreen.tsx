@@ -18,6 +18,7 @@ import { DotGridBackground } from '../components/DotGridBackground';
 import { BrutalBox } from '../components/BrutalBox';
 import { OnboardingTopHeader } from '../components/OnboardingTopHeader';
 import { OnboardingBottomBar } from '../components/OnboardingBottomBar';
+import { OnboardingHeadline } from '../components/OnboardingHeadline';
 import { UserAccount } from '../types/user';
 import { NeoSlider } from '../components/NeoSlider';
 import { fetchPreferences, savePreferences, updateProfile } from '../services/profile';
@@ -33,14 +34,14 @@ interface OnboardingPreferencesScreenProps {
 
 const INTERESTED_OPTIONS = ['WOMAN', 'MAN', 'NON-BINARY', 'OTHER'] as const;
 const LOOKING_FOR_OPTIONS = [
-  '★ LONG-TERM',
+  'LONG-TERM',
   'SHORT-TERM FUN',
   'NEW FRIENDS',
   'FIGURING IT OUT',
 ] as const;
 
 const INTENTION_BY_LABEL: Record<(typeof LOOKING_FOR_OPTIONS)[number], Enums<'intention_t'>> = {
-  '★ LONG-TERM': 'long_term',
+  'LONG-TERM': 'long_term',
   'SHORT-TERM FUN': 'short_term',
   'NEW FRIENDS': 'friends',
   'FIGURING IT OUT': 'figuring_out',
@@ -60,7 +61,7 @@ export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenPr
   onNext,
 }) => {
   const [selectedInterested, setSelectedInterested] = useState<string[]>(['WOMAN']);
-  const [selectedLookingFor, setSelectedLookingFor] = useState<string>('★ LONG-TERM');
+  const [selectedLookingFor, setSelectedLookingFor] = useState<string>('LONG-TERM');
   const [minAge, setMinAge] = useState<number>(24);
   const [maxAge, setMaxAge] = useState<number>(34);
   const [distanceKm, setDistanceKm] = useState<number>(25);
@@ -118,7 +119,7 @@ export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenPr
       <DotGridBackground />
 
       {/* 1. Universal Neo-Brutalist Onboarding Top Header */}
-      <OnboardingTopHeader onBack={onBack} user={user} />
+      <OnboardingTopHeader onBack={onBack} onPrevStep={onBack} user={user} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -126,36 +127,13 @@ export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenPr
       >
         <View style={styles.container}>
           <View style={styles.contentSection}>
-            {/* 2. Step Badge Row */}
-            <View style={styles.stepBadgeRow}>
-              <BrutalBox
-                backgroundColor={colors.accentYellow}
-                borderColor={colors.borderBlack}
-                borderWidth={2.2}
-                borderRadius={999}
-                shadowOffset={{ x: 2.2, y: 2.2 }}
-                contentStyle={styles.stepBadgeContent}
-              >
-                <Ionicons name="compass" size={13} color={colors.textDark} />
-                <Text style={styles.stepBadgeText}>STEP 04 / 08</Text>
-              </BrutalBox>
-
-              <View style={styles.vibeMatchingPill}>
-                <View style={styles.vibeDot} />
-                <Text style={styles.vibeMatchingText}>VIBE MATCHING</Text>
-              </View>
-            </View>
-
-            {/* 3. Headline */}
-            <View style={styles.headlineWrapper}>
-              <Text style={styles.headlineText}>WHO DO YOU WANT TO SEE?</Text>
-              <View style={styles.subtitleRow}>
-                <Ionicons name="heart-outline" size={14} color={colors.primaryPink} style={{ marginTop: 2 }} />
-                <Text style={styles.subtitleText}>
-                  Pick everyone you'd like in your Discovery feed.
-                </Text>
-              </View>
-            </View>
+            {/* 2. Unified Headline with 5px Black Underline */}
+            <OnboardingHeadline
+              step="04"
+              line1="WHO ARE YOU"
+              focalWord="LOOKING FOR?"
+              subtitle="Pick everyone you'd like in your Discovery feed."
+            />
 
             {/* 4. INTERESTED IN Card */}
             <View style={styles.cardOuterWrapper}>
@@ -375,40 +353,30 @@ export const OnboardingPreferencesScreen: React.FC<OnboardingPreferencesScreenPr
               </BrutalBox>
             </View>
 
-            {/* 8. Discovery Feed Preview Banner */}
+            {/* 8. Discovery Filter Info Note */}
             <BrutalBox
-              backgroundColor="#C7D2FE"
+              backgroundColor="#FFFFFF"
               borderColor={colors.borderBlack}
               borderWidth={2.4}
-              borderRadius={18}
-              shadowOffset={{ x: 3, y: 3 }}
+              borderRadius={16}
+              shadowOffset={{ x: 3.5, y: 3.5 }}
               style={styles.fullWidth}
               contentStyle={styles.discoveryCardContent}
             >
-              <View style={styles.discoveryIconCircle}>
-                <Ionicons name="flash" size={18} color="#FFFFFF" />
-              </View>
-
-              <View style={styles.discoveryTextCol}>
-                <Text style={styles.discoveryTitle}>EXPANDED DISCOVERY READY</Text>
-                <Text style={styles.discoverySub}>
-                  You'll see ~140 active profiles right away!
-                </Text>
-              </View>
-
-              <View style={styles.boostedBadge}>
-                <Text style={styles.boostedBadgeText}>BOOSTED</Text>
-              </View>
+              <Text style={styles.discoveryText}>
+                Your preferences shape who you see in Discover. You can update these filters anytime in your profile settings.
+              </Text>
             </BrutalBox>
           </View>
         </View>
       </ScrollView>
 
-      {/* Pinned Bottom Action Buttons */}
+      {/* Pinned Bottom Action Button */}
       <View style={styles.bottomBarWrapper}>
         <OnboardingBottomBar
           onNext={handleNext}
-          onSkip={() => handleNext()}
+          onBack={onBack}
+          showSkip={false}
           isSaving={isSaving}
         />
       </View>
@@ -420,60 +388,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.bgCream,
-  },
-  topNavContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: colors.bgCream,
-    gap: 12,
-  },
-  topNavRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniLogoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  miniLogoText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: typography.headline,
-    letterSpacing: 0.5,
-  },
-  stepIndicatorText: {
-    fontSize: 12.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.6,
-  },
-  avatarButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressBarTrack: {
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.borderBlack,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    width: '50%', // Step 4 of 8
-    height: '100%',
-    backgroundColor: colors.primaryPink,
-    borderRadius: 999,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -502,75 +416,6 @@ const styles = StyleSheet.create({
   },
   fullWidth: {
     width: '100%',
-  },
-  stepBadgeRow: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  stepBadgeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    gap: 6,
-  },
-  stepBadgeText: {
-    fontSize: 11,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.5,
-  },
-  vibeMatchingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFE5EE',
-    borderWidth: 1.8,
-    borderColor: colors.borderBlack,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    gap: 6,
-  },
-  vibeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: colors.primaryPink,
-  },
-  vibeMatchingText: {
-    fontSize: 10.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-  },
-  headlineWrapper: {
-    width: '100%',
-    gap: 0,
-    marginTop: -8,
-    paddingTop: 2,
-    overflow: 'visible',
-  },
-  headlineText: {
-    fontSize: 34,
-    fontFamily: typography.headline,
-    color: colors.textDark,
-    letterSpacing: 0.5,
-    lineHeight: 38,
-    paddingTop: 1,
-  },
-  subtitleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-  },
-  subtitleText: {
-    fontSize: 13,
-    fontFamily: typography.bodySemiBold,
-    color: '#333',
-    flex: 1,
-    lineHeight: 18,
   },
   cardOuterWrapper: {
     width: '100%',
@@ -830,47 +675,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   discoveryCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
-  discoveryIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#9E0038',
-    borderWidth: 1.8,
-    borderColor: colors.borderBlack,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  discoveryTextCol: {
-    flex: 1,
-    gap: 2,
-  },
-  discoveryTitle: {
+  discoveryText: {
     fontSize: 12,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-  },
-  discoverySub: {
-    fontSize: 11.5,
-    fontFamily: typography.bodySemiBold,
-    color: '#444',
-  },
-  boostedBadge: {
-    borderWidth: 1.5,
-    borderColor: colors.borderBlack,
-    borderRadius: 999,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  boostedBadgeText: {
-    fontSize: 9.5,
-    fontFamily: typography.bodyExtraBold,
-    color: colors.textDark,
-    letterSpacing: 0.4,
+    fontFamily: typography.bodyBold,
+    color: '#4B5563',
+    lineHeight: 17,
   },
 });
