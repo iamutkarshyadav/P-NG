@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   MAX_PHOTOS,
@@ -10,6 +10,7 @@ import {
   reorderPhotos,
   uploadPhoto,
 } from '../services/photos';
+import { reportError } from '../lib/monitoring';
 
 export type PhotoAddOutcome = 'added' | 'cancelled' | 'denied';
 
@@ -18,6 +19,7 @@ export function usePhotos(userId: string) {
   const queryKey = ['photos', userId] as const;
   const query = useQuery({ queryKey, queryFn: () => fetchMyPhotos(userId) });
   const [uploadingSlots, setUploadingSlots] = useState<number[]>([]);
+  const activeUploadsRef = useRef<Set<number>>(new Set());
 
   const photos: ProfilePhoto[] = query.data ?? [];
   const refresh = useCallback(
@@ -25,13 +27,13 @@ export function usePhotos(userId: string) {
     [queryClient, userId]
   );
 
-  /** Picks an image and uploads it into the first free slot. Throws with a user-facing message on failure. */
+  /** Picks an image and uploads it into the first free slot, preventing concurrent slot collisions. */
   const addPhoto = useCallback(
     async (source: PickSource): Promise<PhotoAddOutcome> => {
-      const taken = new Set(photos.map((p) => p.position));
+      const committed = new Set(photos.map((p) => p.position));
       let slot = -1;
       for (let i = 0; i < MAX_PHOTOS; i += 1) {
-        if (!taken.has(i)) {
+        if (!committed.has(i) && !activeUploadsRef.current.has(i)) {
           slot = i;
           break;
         }
@@ -42,13 +44,20 @@ export function usePhotos(userId: string) {
       if (!picked) return 'cancelled';
       if ('denied' in picked) return 'denied';
 
-      setUploadingSlots((s) => [...s, slot]);
+      // Reserve slot immediately in sync ref and update UI state
+      activeUploadsRef.current.add(slot);
+      setUploadingSlots(Array.from(activeUploadsRef.current));
+
       try {
         await uploadPhoto(userId, picked.uri, slot);
         await refresh();
         return 'added';
+      } catch (err) {
+        reportError(err, 'usePhotos.addPhoto');
+        throw err;
       } finally {
-        setUploadingSlots((s) => s.filter((x) => x !== slot));
+        activeUploadsRef.current.delete(slot);
+        setUploadingSlots(Array.from(activeUploadsRef.current));
       }
     },
     [photos, userId, refresh]
@@ -56,8 +65,26 @@ export function usePhotos(userId: string) {
 
   const removePhoto = useCallback(
     async (photo: ProfilePhoto) => {
-      await deletePhoto(photo);
-      await refresh();
+      try {
+        await deletePhoto(photo);
+        await refresh();
+      } catch (err) {
+        reportError(err, 'usePhotos.removePhoto');
+        throw err;
+      }
+    },
+    [refresh]
+  );
+
+  const reorder = useCallback(
+    async (orderedIds: string[]) => {
+      try {
+        await reorderPhotos(orderedIds);
+        await refresh();
+      } catch (err) {
+        reportError(err, 'usePhotos.reorderPhotos');
+        throw err;
+      }
     },
     [refresh]
   );
@@ -65,10 +92,9 @@ export function usePhotos(userId: string) {
   const makePrimary = useCallback(
     async (photo: ProfilePhoto) => {
       const ordered = [photo, ...photos.filter((p) => p.id !== photo.id)].map((p) => p.id);
-      await reorderPhotos(ordered);
-      await refresh();
+      await reorder(ordered);
     },
-    [photos, refresh]
+    [photos, reorder]
   );
 
   return {
@@ -79,6 +105,7 @@ export function usePhotos(userId: string) {
     addPhoto,
     removePhoto,
     makePrimary,
+    reorderPhotos: reorder,
     refresh,
   };
 }

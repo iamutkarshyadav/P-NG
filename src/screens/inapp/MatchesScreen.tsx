@@ -20,7 +20,7 @@ import { BrutalBox } from '../../components/BrutalBox';
 import { ProfileAvatar } from '../../components/ProfileAvatar';
 import { useSignedUrls } from '../../hooks/useSignedUrls';
 import { fetchMatches, MatchSummary } from '../../services/chat';
-import { unmatch, type FeedProfile } from '../../services/discover';
+import { unmatch, fetchProfileDetails, type FeedProfile } from '../../services/discover';
 import { DiscoveryProfileDetailScreen } from './DiscoveryProfileDetailScreen';
 import { errorMessage } from '../../services/errors';
 import { relativeShort } from '../../lib/format';
@@ -47,8 +47,16 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ user, onOpenChat }
   const urls = useSignedUrls(matches.map((m) => m.photoPath).filter((p): p is string => Boolean(p)));
   const [selectedPartner, setSelectedPartner] = useState<MatchSummary | null>(null);
 
+  const selectedProfileQuery = useQuery({
+    queryKey: ['profile-details', selectedPartner?.partnerId],
+    queryFn: () => fetchProfileDetails(selectedPartner!.partnerId),
+    enabled: Boolean(selectedPartner?.partnerId),
+    staleTime: 5 * 60_000,
+  });
+
   const selectedFeedProfile = useMemo<FeedProfile | null>(() => {
     if (!selectedPartner) return null;
+    if (selectedProfileQuery.data) return selectedProfileQuery.data;
     const feed = queryClient.getQueryData<FeedProfile[]>(['feed']);
     const cached = feed?.find((f) => f.id === selectedPartner.partnerId);
     if (cached) return cached;
@@ -67,7 +75,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ user, onOpenChat }
       languages: [],
       prompts: [],
     };
-  }, [selectedPartner, queryClient]);
+  }, [selectedPartner, selectedProfileQuery.data, queryClient]);
 
   const partnerPhotoPaths = useMemo(() => {
     if (selectedFeedProfile?.photoPaths && selectedFeedProfile.photoPaths.length > 0) {
@@ -526,22 +534,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#34D399',
     borderWidth: 2,
     borderColor: '#FFFFFF',
-  },
-  hourglassBadge: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.accentYellow,
-    borderWidth: 1.5,
-    borderColor: colors.borderBlack,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hourglassEmoji: {
-    fontSize: 11,
   },
   convDetails: {
     flex: 1,

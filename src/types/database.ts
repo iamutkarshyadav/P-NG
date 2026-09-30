@@ -627,6 +627,14 @@ export type Database = {
       undo_last_swipe: { Args: never; Returns: string };
       unmatch: { Args: { p_match: string }; Returns: undefined };
       zodiac_sign: { Args: { b: string }; Returns: string };
+      save_full_profile: {
+        Args: {
+          p_profile: Json;
+          p_tag_ids: number[] | null;
+          p_prompts: Json | null;
+        };
+        Returns: Tables<'profiles'>;
+      };
     };
     Enums: {
       gender_t: Gender;

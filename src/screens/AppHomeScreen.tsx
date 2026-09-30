@@ -152,6 +152,10 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
           activeTab={activeTab}
           onPressFilter={handleOpenFilter}
           onPressAvatar={() => setActiveTab('profile')}
+          onPressSettings={() => {
+            setProfileSubScreen('settings');
+            setIsProfileSubScreenActive(true);
+          }}
           likesCount={likesCount}
           matchesCount={matchesCount}
         />
@@ -168,7 +172,10 @@ export const AppHomeScreen: React.FC<AppHomeScreenProps> = ({
           <ProfileScreen
             user={user}
             onLogout={onLogout}
-            onSubScreenChange={(isSub) => setIsProfileSubScreenActive(isSub)}
+            onSubScreenChange={(isSub) => {
+              setIsProfileSubScreenActive(isSub);
+              if (!isSub) setProfileSubScreen('none');
+            }}
             initialSubScreen={profileSubScreen}
           />
         )}

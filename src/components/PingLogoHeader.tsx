@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import Svg, { Text as SvgText, G, Path } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { BrutalBox } from './BrutalBox';
@@ -203,7 +203,7 @@ export const PingLogoHeader: React.FC = () => {
         </BrutalBox>
       </View>
 
-      {/* Overlapping Angled "★ 100% REAL" Badge (Bottom Left) */}
+      {/* Overlapping Angled "100% REAL" Badge (Bottom Left) */}
       <View style={styles.realBadgeContainer}>
         <BrutalBox
           backgroundColor={colors.accentYellow}
@@ -213,7 +213,10 @@ export const PingLogoHeader: React.FC = () => {
           shadowOffset={{ x: 2.5, y: 2.5 }}
           contentStyle={styles.realBadgeContent}
         >
-          <Text style={styles.realBadgeText}>★ 100% REAL</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Feather name="shield" size={11} color={colors.textDark} style={{ marginRight: 4 }} />
+            <Text style={styles.realBadgeText}>100% REAL</Text>
+          </View>
         </BrutalBox>
       </View>
     </View>
@@ -265,6 +268,8 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-6deg' }],
   },
   realBadgeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 4,
   },

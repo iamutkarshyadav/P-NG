@@ -45,10 +45,20 @@ export const AppLockGate: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => sub.remove();
   }, [unlock]);
 
+  const isLocked = locked === true || locked === null;
+
   return (
     <View style={styles.container}>
-      {children}
-      {(locked === true || locked === null) && (
+      <View
+        style={styles.container}
+        accessible={!isLocked}
+        accessibilityElementsHidden={isLocked}
+        importantForAccessibility={isLocked ? 'no-hide-descendants' : 'auto'}
+        aria-hidden={isLocked}
+      >
+        {children}
+      </View>
+      {isLocked && (
         <View style={[StyleSheet.absoluteFill, styles.overlay]}>
           <Ionicons name="lock-closed" size={44} color={colors.primaryPink} />
           <Text style={styles.title}>P!NG IS LOCKED</Text>

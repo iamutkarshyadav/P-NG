@@ -165,6 +165,43 @@ export async function updateProfile(
   return toUserAccount(row as ProfileRow, user.email);
 }
 
+export interface SaveFullProfileInput {
+  user: Pick<UserAccount, 'id' | 'email'>;
+  profilePatch: ProfileUpdate;
+  tagIds: number[] | null;
+  prompts: Array<{
+    slot: number;
+    prompt: string;
+    answer: string;
+    photoPath?: string | null;
+  }> | null;
+}
+
+export async function saveFullProfileTransaction({
+  user,
+  profilePatch,
+  tagIds,
+  prompts,
+}: SaveFullProfileInput): Promise<UserAccount> {
+  const promptPayload = prompts
+    ? prompts.map((p) => ({
+        slot: p.slot,
+        prompt: p.prompt,
+        answer: p.answer,
+        photo_path: p.photoPath ?? null,
+      }))
+    : null;
+
+  const row = unwrap(
+    await supabase.rpc('save_full_profile', {
+      p_profile: profilePatch as unknown as import('../types/database').Json,
+      p_tag_ids: tagIds,
+      p_prompts: promptPayload as unknown as import('../types/database').Json,
+    })
+  );
+  return toUserAccount(row as unknown as ProfileRow, user.email);
+}
+
 export async function fetchPreferences(userId: string): Promise<PreferencesRow> {
   return unwrap(
     await supabase

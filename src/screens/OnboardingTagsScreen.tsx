@@ -176,7 +176,6 @@ export const OnboardingTagsScreen: React.FC<OnboardingTagsScreenProps> = ({
                       onPress={() => handleToggleTag(tag.id)}
                       contentStyle={styles.tagPillContent}
                     >
-                      <Text style={styles.tagEmoji}>{tag.emoji}</Text>
                       <Text style={styles.tagNameText}>{tag.name}</Text>
                       {isSelected && (
                         <Feather
@@ -294,9 +293,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     gap: 6,
-  },
-  tagEmoji: {
-    fontSize: 14,
   },
   tagNameText: {
     fontSize: 13,

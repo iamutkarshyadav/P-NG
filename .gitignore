@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
@@ -47,3 +48,7 @@ supabase/full-db-reset-and-seed.sql
 supabase/prod-cleanup.sql
 supabase/review-reports.sql
 supabase/review-verification.sql
+supabase/activate-*.sql
+supabase/reset-*.sql
+supabase/seed-*.sql
+

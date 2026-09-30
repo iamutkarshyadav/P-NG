@@ -14,6 +14,7 @@ interface InAppTopHeaderProps {
   activeTab?: InAppTab;
   onPressFilter?: () => void;
   onPressAvatar?: () => void;
+  onPressSettings?: () => void;
   likesCount?: number;
   matchesCount?: number;
 }
@@ -21,6 +22,7 @@ interface InAppTopHeaderProps {
 export const InAppTopHeader: React.FC<InAppTopHeaderProps> = ({
   activeTab = 'discover',
   onPressFilter,
+  onPressSettings,
   likesCount = 0,
   matchesCount = 0,
 }) => {
@@ -45,7 +47,7 @@ export const InAppTopHeader: React.FC<InAppTopHeaderProps> = ({
       {/* Right: Tab-Specific Purposeful Action */}
       <View style={styles.actionsRow}>
         {activeTab === 'discover' && (
-          <TouchableOpacity activeOpacity={0.8} onPress={onPressFilter}>
+          <TouchableOpacity activeOpacity={0.8} onPress={onPressFilter} accessibilityLabel="Filter Preferences">
             <BrutalBox
               backgroundColor={colors.cardWhite}
               borderColor={colors.borderBlack}
@@ -88,6 +90,21 @@ export const InAppTopHeader: React.FC<InAppTopHeaderProps> = ({
             <Ionicons name="chatbubbles" size={12} color="#000" />
             <Text style={styles.statusPillText}>{matchesCount} ACTIVE</Text>
           </BrutalBox>
+        )}
+
+        {activeTab === 'profile' && onPressSettings && (
+          <TouchableOpacity activeOpacity={0.8} onPress={onPressSettings} accessibilityLabel="Settings">
+            <BrutalBox
+              backgroundColor={colors.cardWhite}
+              borderColor={colors.borderBlack}
+              borderWidth={2}
+              borderRadius={999}
+              shadowOffset={{ x: 2.2, y: 2.2 }}
+              contentStyle={styles.iconButtonContent}
+            >
+              <Feather name="settings" size={17} color={colors.textDark} />
+            </BrutalBox>
+          </TouchableOpacity>
         )}
       </View>
     </View>

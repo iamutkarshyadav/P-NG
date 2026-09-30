@@ -652,7 +652,7 @@ function AppShell() {
                       </View>
                     </View>
 
-                    {/* Primary Action Button: "⚡ SEND P!NG" or "CREATE ACCOUNT" */}
+                    {/* Primary Action Button: "SEND P!NG" or "CREATE ACCOUNT" */}
                     <BrutalBox
                       backgroundColor={colors.accentYellow}
                       borderColor={colors.borderBlack}
@@ -747,7 +747,7 @@ function AppShell() {
 
               {/* 7. Trust Footnote */}
               <Text style={styles.trustFootnote}>
-                ★ 100% REAL VERIFIED PROFILES • NO BOTS • P!NG SAFELY ★
+                100% REAL VERIFIED PROFILES • NO BOTS • P!NG SAFELY
               </Text>
             </View>
           </View>

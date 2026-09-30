@@ -130,7 +130,7 @@ export const LikesScreen: React.FC<LikesScreenProps> = ({ onOpenChat }) => {
       if (outcome.matched && outcome.matchId) {
         queryClient.invalidateQueries({ queryKey: ['matches'] });
         const matchId = outcome.matchId;
-        Alert.alert('🎉 IT’S A MATCH!', `You and ${item.name} P!NGed each other.`, [
+        Alert.alert('IT’S A MATCH!', `You and ${item.name} P!NGed each other.`, [
           { text: 'Later', style: 'cancel' },
           { text: 'Say hi', onPress: () => onOpenChat({ matchId, partnerId: item.id, partnerName: item.name }) },
         ]);

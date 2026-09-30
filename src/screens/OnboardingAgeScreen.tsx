@@ -417,7 +417,7 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
         <OnboardingBottomBar
           onNext={handleOpenConfirmModal}
           onBack={onBack}
-          nextText="CONFIRM BIRTHDATE ➔"
+          nextText="CONFIRM BIRTHDATE"
           showSkip={false}
           isSaving={isSaving}
         />
@@ -505,7 +505,7 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
                       contentStyle={styles.modalPrimaryBtn}
                     >
                       <Text style={styles.modalPrimaryBtnText}>
-                        YES, I'M {age} ➔
+                        YES, I'M {age}
                       </Text>
                     </BrutalBox>
                   </TouchableOpacity>
@@ -544,7 +544,7 @@ export const OnboardingAgeScreen: React.FC<OnboardingAgeScreenProps> = ({
                       contentStyle={styles.modalPrimaryBtn}
                     >
                       <Text style={[styles.modalPrimaryBtnText, { color: '#B42318' }]}>
-                        ← FIX BIRTHDATE
+                        FIX BIRTHDATE
                       </Text>
                     </BrutalBox>
                   </TouchableOpacity>

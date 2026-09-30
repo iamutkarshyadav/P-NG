@@ -14,7 +14,6 @@ interface DatingProfileTagsShowcaseProps {
 interface EnrichedTag {
   id: string | number;
   name: string;
-  emoji: string;
   category: 'lifestyle' | 'music' | 'creative' | 'food';
   tint: string;
 }
@@ -62,8 +61,7 @@ export const DatingProfileTagsShowcase: React.FC<DatingProfileTagsShowcaseProps>
         return {
           id: t.id ?? idx,
           name: t.name,
-          emoji: t.emoji || '⚡',
-          category: t.category || 'lifestyle',
+          category: (t.category as any) || 'lifestyle',
           tint: t.tint || '#FFFFFF',
         };
       }
@@ -73,15 +71,13 @@ export const DatingProfileTagsShowcase: React.FC<DatingProfileTagsShowcaseProps>
         return {
           id: found.id,
           name: found.name,
-          emoji: found.emoji,
-          category: found.category,
+          category: (found.category as any) || 'lifestyle',
           tint: found.tint,
         };
       }
       return {
         id: idx,
         name: String(t),
-        emoji: '⚡',
         category: 'lifestyle' as const,
         tint: '#FFFFFF',
       };
@@ -138,7 +134,11 @@ export const DatingProfileTagsShowcase: React.FC<DatingProfileTagsShowcaseProps>
               contentStyle={styles.featuredVibeContent}
             >
               <View style={styles.featuredEmojiBox}>
-                <Text style={styles.featuredEmojiText}>{topVibe.emoji}</Text>
+                <Ionicons
+                  name={(CATEGORY_THEMES[topVibe.category]?.icon as any) || 'sparkles'}
+                  size={22}
+                  color="#000000"
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.featuredCategoryText}>
@@ -169,7 +169,11 @@ export const DatingProfileTagsShowcase: React.FC<DatingProfileTagsShowcaseProps>
                     contentStyle={styles.stickerContent}
                   >
                     <View style={styles.stickerEmojiBadge}>
-                      <Text style={styles.stickerEmojiText}>{tag.emoji}</Text>
+                      <Ionicons
+                        name={(theme.icon as any) || 'sparkles'}
+                        size={15}
+                        color="#000000"
+                      />
                     </View>
                     <View style={styles.stickerTextCol}>
                       <Text style={styles.stickerCategoryText}>{tag.category.toUpperCase()}</Text>
@@ -300,9 +304,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  featuredEmojiText: {
-    fontSize: 22,
-  },
   featuredCategoryText: {
     fontFamily: typography.bodyExtraBold,
     fontSize: 10,
@@ -351,9 +352,6 @@ const styles = StyleSheet.create({
     borderColor: colors.borderBlack,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  stickerEmojiText: {
-    fontSize: 16,
   },
   stickerTextCol: {
     flex: 1,

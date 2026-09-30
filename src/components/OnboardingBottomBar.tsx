@@ -21,7 +21,7 @@ export const OnboardingBottomBar: React.FC<OnboardingBottomBarProps> = ({
   onBack,
   onSkip,
   showSkip = false,
-  nextText = 'NEXT ➔',
+  nextText = 'NEXT',
   isSaving = false,
   disabled = false,
 }) => {

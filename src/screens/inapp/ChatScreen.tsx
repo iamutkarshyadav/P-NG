@@ -436,12 +436,20 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
         <TouchableOpacity
           activeOpacity={0.75}
           onPress={onBack}
-          style={styles.backIconButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
           accessibilityLabel="Back to matches"
         >
-          <Ionicons name="arrow-back" size={24} color={colors.textDark} />
+          <BrutalBox
+            backgroundColor="#FFFFFF"
+            borderColor={colors.borderBlack}
+            borderWidth={2}
+            borderRadius={12}
+            shadowOffset={{ x: 2, y: 2 }}
+            contentStyle={styles.headerButtonContent}
+          >
+            <Ionicons name="arrow-back" size={20} color={colors.textDark} />
+          </BrutalBox>
         </TouchableOpacity>
 
         <Text style={styles.chatDirectTitle}>CHAT DIRECT</Text>
@@ -450,12 +458,20 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={() => setMenuOpen(true)}
-            style={styles.moreIconButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityRole="button"
             accessibilityLabel="Chat options"
           >
-            <Ionicons name="ellipsis-vertical" size={22} color={colors.textDark} />
+            <BrutalBox
+              backgroundColor="#FFFFFF"
+              borderColor={colors.borderBlack}
+              borderWidth={2}
+              borderRadius={12}
+              shadowOffset={{ x: 2, y: 2 }}
+              contentStyle={styles.headerButtonContent}
+            >
+              <Ionicons name="ellipsis-vertical" size={20} color={colors.textDark} />
+            </BrutalBox>
           </TouchableOpacity>
         </View>
       </View>
@@ -560,7 +576,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ target, user, onBack }) 
                   contentStyle={styles.warningContent}
                 >
                   <View style={styles.warningLeftRow}>
-                    <Text style={styles.warningIcon}>⚠️</Text>
+                    <Feather name="shield" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
                     <Text style={styles.warningText} numberOfLines={1}>
                       KEEP CHATS IN P!NG. NEVER SEND MONEY.
                     </Text>
@@ -855,11 +871,14 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     backgroundColor: '#FAF7F2',
   },
-  backIconButton: {
-    padding: 4,
+  headerButtonContent: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chatDirectTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontFamily: typography.headline,
     color: colors.textDark,
     letterSpacing: 0.8,
@@ -868,9 +887,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  moreIconButton: {
-    padding: 4,
   },
   headerAvatarWrap: {
     width: 38,
@@ -1170,9 +1186,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 10,
     gap: 6,
-  },
-  unlockBtnEmoji: {
-    fontSize: 13,
   },
   unlockBtnText: {
     fontSize: 12.5,

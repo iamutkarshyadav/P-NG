@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Modal } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { LAYOUT } from '../theme/responsive';
@@ -73,7 +74,8 @@ export const OnboardingTopHeader: React.FC<OnboardingTopHeaderProps> = ({
               contentStyle={styles.modalCardContent}
             >
               <View style={styles.modalTag}>
-                <Text style={styles.modalTagText}>⚠️ EXIT ONBOARDING</Text>
+                <Feather name="alert-triangle" size={12} color="#000" style={{ marginRight: 4 }} />
+                <Text style={styles.modalTagText}>EXIT ONBOARDING</Text>
               </View>
 
               <Text style={styles.modalTitle}>RETURN TO LOGIN?</Text>
@@ -112,7 +114,7 @@ export const OnboardingTopHeader: React.FC<OnboardingTopHeaderProps> = ({
                     shadowOffset={{ x: 2, y: 2 }}
                     contentStyle={styles.modalBtnContent}
                   >
-                    <Text style={styles.modalLogoutText}>LOG OUT ➔</Text>
+                    <Text style={styles.modalLogoutText}>LOG OUT</Text>
                   </BrutalBox>
                 </TouchableOpacity>
               </View>
@@ -164,6 +166,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   modalTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
     alignSelf: 'flex-start',
     backgroundColor: colors.accentYellow,
     borderWidth: 2,

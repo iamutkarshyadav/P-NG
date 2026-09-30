@@ -58,9 +58,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [previewInitialMode, setPreviewInitialMode] = useState<'preview' | 'edit'>('edit');
 
   useEffect(() => {
-    if (initialSubScreen && initialSubScreen !== 'none') {
-      setActiveSubScreen(initialSubScreen);
-    }
+    setActiveSubScreen(initialSubScreen);
   }, [initialSubScreen]);
 
   useEffect(() => {
@@ -514,7 +512,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               {/* Floating Alert Tag */}
               <View style={styles.modalTagWrapper}>
                 <View style={styles.modalTag}>
-                  <Text style={styles.modalTagText}>⚠️ CONFIRM LOGOUT</Text>
+                  <Feather name="log-out" size={11} color="#000" style={{ marginRight: 4 }} />
+                  <Text style={styles.modalTagText}>CONFIRM LOGOUT</Text>
                 </View>
               </View>
 
@@ -915,6 +914,8 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   modalTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.accentYellow,
     borderWidth: 2,
     borderColor: colors.borderBlack,

@@ -382,7 +382,7 @@ export const OnboardingLocationScreen: React.FC<OnboardingLocationScreenProps> =
         <OnboardingBottomBar
           onNext={handleFinish}
           onBack={onBack}
-          nextText={isSaving ? 'LAUNCHING...' : 'ENTER P!NG ➔'}
+          nextText={isSaving ? 'LAUNCHING...' : 'ENTER P!NG'}
           showSkip={false}
           isSaving={isSaving}
         />

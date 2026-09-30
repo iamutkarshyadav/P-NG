@@ -25,6 +25,7 @@ import { pickPhotoUri } from '../services/photos';
 import { uploadPromptPhoto } from '../services/prompts';
 import { useSignedUrls } from '../hooks/useSignedUrls';
 import { errorMessage } from '../services/errors';
+import { reportError } from '../lib/monitoring';
 
 interface ProfilePromptsEditorProps {
   userId: string;
@@ -71,6 +72,7 @@ export const ProfilePromptsEditor: React.FC<ProfilePromptsEditorProps> = ({
       const storagePath = await uploadPromptPhoto(userId, res.uri);
       update(slot, { photoPath: storagePath });
     } catch (e) {
+      reportError(e, 'ProfilePromptsEditor.handlePickPhoto');
       Alert.alert('Upload Failed', errorMessage(e));
     } finally {
       setUploadingSlot(null);

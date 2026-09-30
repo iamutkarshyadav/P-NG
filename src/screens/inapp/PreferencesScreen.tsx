@@ -150,7 +150,7 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ user, onBa
         maxDistance,
         strictDistance,
       });
-      Alert.alert('⚡ Filters Applied', 'Your Discover feed now uses these preferences.', [
+      Alert.alert('Filters Applied', 'Your Discover feed now uses these preferences.', [
         { text: 'OK', onPress: onBack },
       ]);
     } catch (e) {
@@ -391,7 +391,7 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ user, onBa
               style={styles.fullWidth}
               contentStyle={styles.applyBtnContent}
             >
-              {saving ? <ActivityIndicator color={colors.textDark} /> : <Text style={styles.applyBtnText}>APPLY FILTERS ⚡</Text>}
+              {saving ? <ActivityIndicator color={colors.textDark} /> : <Text style={styles.applyBtnText}>APPLY FILTERS</Text>}
             </BrutalBox>
           </TouchableOpacity>
 
